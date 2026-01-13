@@ -1,0 +1,190 @@
+:root {
+    --bg-color: #050510;
+    --grid-color: rgba(0, 255, 255, 0.1);
+    --primary: #00f3ff;
+    --secondary: #ff00ff;
+    --surface: rgba(20, 20, 35, 0.6);
+    --glass: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --text-main: #e0e0e0;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--text-main);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+/* Background Effects */
+.bg-grid {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0.2) 100%);
+}
+
+.scanline {
+    width: 100%;
+    height: 100px;
+    z-index: 10;
+    background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(0,0,0,0) 100%);
+    opacity: 0.1;
+    position: absolute;
+    bottom: 100%;
+    pointer-events: none;
+    animation: scanline 10s linear infinite;
+}
+
+@keyframes scanline {
+    0% { bottom: 100%; }
+    100% { bottom: -100px; }
+}
+
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+}
+
+/* Top Bar */
+#controls-bar {
+    height: 60px;
+    background: rgba(10, 10, 15, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    justify-content: space-between;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.brand {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+    letter-spacing: 2px;
+}
+
+.brand .version {
+    color: var(--secondary);
+    font-size: 0.8em;
+}
+
+.actions button {
+    background: var(--glass);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 8px 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-left: 10px;
+    border-radius: 4px; /* Angular sharp corners */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.actions button:hover {
+    background: rgba(0, 243, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+    text-shadow: 0 0 5px var(--primary);
+}
+
+.actions button#toggle-edit-btn.editing {
+    border-color: var(--secondary);
+    color: var(--secondary);
+    background: rgba(255, 0, 255, 0.1);
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+}
+
+/* Game Area */
+#game-pad {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden; /* Prevent dragging outside somewhat */
+}
+
+/* Buttons */
+.game-btn {
+    position: absolute;
+    border-radius: 10px; 
+    /* We use JS color in inline style, but add glass effect */
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.2em;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    box-shadow: 
+        0 4px 6px rgba(0,0,0,0.3),
+        inset 0 1px 0 rgba(255,255,255,0.2);
+    transition: transform 0.1s, box-shadow 0.1s, border-color 0.2s;
+    touch-action: none;
+    text-transform: uppercase;
+}
+
+.game-btn::after {
+    content: '';
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+.game-btn:active {
+    transform: scale(0.96);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.3);
+    border-color: var(--primary);
+}
+
+/* Edit Mode Styling */
+.game-btn.editing {
+    border: 2px dashed var(--secondary);
+    animation: pulse-border 2s infinite;
+    cursor: move;
+}
+
+.game-btn.editing::before {
+    content: 'drag';
+    position: absolute;
+    bottom: 2px;
+    right: 5px;
+    font-size: 0.6em;
+    opacity: 0.7;
+    font-family: 'Rajdhani', sans-serif;
+}
+
+@keyframes pulse-border {
+    0% { border-color: rgba(255, 0, 255, 0.3); }
+    50% { border-color: rgba(255, 0, 255, 1); }
+    100% { border-color: rgba(255, 0, 255, 0.3); }
+}

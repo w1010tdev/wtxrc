@@ -1,0 +1,53 @@
+{
+    "buttons": [
+        {
+            "color": "#FF5733",
+            "height": 100,
+            "id": "btn1",
+            "keys": [
+                "space"
+            ],
+            "label": "Jump",
+            "width": 100,
+            "x": 10,
+            "y": 10
+        },
+        {
+            "color": "#33FF57",
+            "height": 100,
+            "id": "btn2",
+            "keys": [
+                "ctrl"
+            ],
+            "label": "Crouch",
+            "width": 100,
+            "x": 398,
+            "y": 138
+        },
+        {
+            "color": "#3357FF",
+            "height": 100,
+            "id": "btn3",
+            "keys": [
+                "a",
+                "b"
+            ],
+            "label": "Combo A",
+            "width": 100,
+            "x": 382,
+            "y": 5
+        },
+        {
+            "color": "#F3FF33",
+            "height": 100,
+            "id": "btn4",
+            "keys": [
+                "esc"
+            ],
+            "label": "Menu",
+            "width": 100,
+            "x": 172,
+            "y": 100
+        }
+    ]
+}
