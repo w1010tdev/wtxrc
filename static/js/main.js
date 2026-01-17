@@ -3,6 +3,7 @@ const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } =
 // Constants
 const MIN_BUTTON_SIZE = 50;
 const MAX_BUTTON_SIZE = 200;
+const BUTTON_EVENT_DELAY = 50; // Delay in ms between button_down and button_up events
 
 // Helper functions for showing messages
 const showMessage = {
@@ -303,7 +304,7 @@ const app = createApp({
             socket.emit('button_down', { id: btn.id, label: btn.label });
             setTimeout(() => {
                 socket.emit('button_up', { id: btn.id });
-            }, 50); // 50ms delay allows server to process events in order
+            }, BUTTON_EVENT_DELAY);
         };
         
         // Canvas event handlers
