@@ -3,6 +3,7 @@ const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } =
 // Constants
 const MIN_BUTTON_SIZE = 50;
 const MAX_BUTTON_SIZE = 200;
+const BUTTON_EVENT_DELAY = 50; // Delay in ms between button_down and button_up events
 
 // Helper functions for showing messages
 const showMessage = {
@@ -89,6 +90,9 @@ const app = createApp({
         
         // Pointer tracking for multi-touch support
         const pointerToButton = new Map(); // pointerId -> buttonId
+        
+        // Timeout tracking for button event delays
+        const pendingButtonTimeouts = new Set();
         
         // Drag/resize state for edit mode
         let dragState = null; // { buttonIndex, mode: 'move'|'resize', offsetX, offsetY, corner }
@@ -274,23 +278,38 @@ const app = createApp({
             };
         };
         
-        // Handle button press
+        // Handle button press (visual only, no key action)
         const handleButtonPress = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
             
             activeButtonsMap[btnId] = true;
             markDirty();
-            socket.emit('button_down', { id: btn.id, label: btn.label });
+            // Visual feedback only - key action will be executed on pointer release
         };
         
-        // Handle button release
+        // Handle button release (visual only)
         const handleButtonRelease = (btnId) => {
             if (!activeButtonsMap[btnId]) return;
             
             delete activeButtonsMap[btnId];
             markDirty();
-            socket.emit('button_up', { id: btnId });
+            // Visual state cleanup only - no key events emitted
+        };
+        
+        // Execute button action (on final release)
+        const executeButtonAction = (btnId) => {
+            const btn = buttonsData.value.find(b => b.id === btnId);
+            if (!btn) return;
+            
+            // Send button_down first, then button_up after a small delay
+            // This allows the server to properly handle the sequence
+            socket.emit('button_down', { id: btn.id, label: btn.label });
+            const timeoutId = setTimeout(() => {
+                socket.emit('button_up', { id: btn.id });
+                pendingButtonTimeouts.delete(timeoutId);
+            }, BUTTON_EVENT_DELAY);
+            pendingButtonTimeouts.add(timeoutId);
         };
         
         // Canvas event handlers
@@ -390,6 +409,9 @@ const app = createApp({
             } else {
                 const btnId = pointerToButton.get(e.pointerId);
                 if (btnId) {
+                    // Execute the button action on release
+                    executeButtonAction(btnId);
+                    // Clear visual state
                     handleButtonRelease(btnId);
                     pointerToButton.delete(e.pointerId);
                 }
@@ -631,6 +653,9 @@ const app = createApp({
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
             }
+            // Clear any pending button timeouts
+            pendingButtonTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+            pendingButtonTimeouts.clear();
             window.removeEventListener('resize', resizeCanvas);
         });
         
