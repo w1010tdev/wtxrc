@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>W-Touch Remote 2077</title>
+    <title>W-Touch Remote</title>
     <!-- Element Plus CSS -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -17,37 +14,37 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
-    <div class="bg-grid"></div>
-    <div class="scanline"></div>
     {% raw %}
     <div id="app">
         <div id="controls-bar">
-            <span class="brand">W-TOUCH <span class="version">RC</span></span>
+            <span class="brand">W-Touch <span class="version">RC</span></span>
             <div class="mode-badge" v-if="mode === 'driving'">
-                <el-tag type="warning">🎮 Driving Mode</el-tag>
+                <el-tag type="warning" size="small">🎮 Driving</el-tag>
             </div>
             <div class="actions">
                 <el-button 
-                    type="primary"
-                    :class="{ editing: isEditing }"
+                    :type="isEditing ? 'warning' : 'primary'"
+                    size="small"
                     @click="toggleEditMode"
                 >
-                    <span v-if="!isEditing">⚙️ EDIT</span>
-                    <span v-else>✓ EXIT EDIT</span>
+                    <span v-if="!isEditing">⚙️ Edit</span>
+                    <span v-else>✓ Done</span>
                 </el-button>
                 <el-button 
                     v-if="isEditing"
-                    type="success" 
+                    type="success"
+                    size="small"
                     @click="addNewButton"
                 >
-                    ➕ ADD
+                    + Add
                 </el-button>
                 <el-button 
-                    v-show="isEditing" 
-                    type="warning" 
+                    v-show="isEditing"
+                    type="primary"
+                    size="small"
                     @click="saveLayout"
                 >
-                    💾 SAVE
+                    💾 Save
                 </el-button>
             </div>
         </div>
@@ -56,14 +53,16 @@
         <el-dialog
             v-model="showMainDeviceDialog"
             title="Set as Main Device?"
-            width="90%"
+            :width="dialogWidth"
             :close-on-click-modal="false"
         >
-            <p>In driving mode, the main device will send gyroscope data to control steering.</p>
-            <p v-if="hasExistingMainDevice">Note: Another device is currently set as main.</p>
+            <p style="margin-bottom: 12px;">In driving mode, the main device will send gyroscope data to control steering.</p>
+            <p v-if="hasExistingMainDevice" style="color: var(--el-color-warning);">Note: Another device is currently set as main.</p>
             <template #footer>
-                <el-button @click="setAsMainDevice(false)">No, Regular Controller</el-button>
-                <el-button type="primary" @click="setAsMainDevice(true)">Yes, Set as Main</el-button>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                    <el-button size="default" @click="setAsMainDevice(false)">Regular Controller</el-button>
+                    <el-button type="primary" size="default" @click="setAsMainDevice(true)">Set as Main</el-button>
+                </div>
             </template>
         </el-dialog>
 
@@ -71,36 +70,37 @@
         <el-dialog
             v-model="showEditDialog"
             title="Configure Button"
-            width="90%"
+            :width="dialogWidth"
             :close-on-click-modal="false"
         >
-            <el-form :model="editingButton" label-width="100px">
-                <el-form-item label="Label">
-                    <el-input v-model="editingButton.label" placeholder="Button Name"></el-input>
+            <el-form :model="editingButton" label-position="top">
+                <el-form-item label="Button Label">
+                    <el-input v-model="editingButton.label" placeholder="Enter button name"></el-input>
                 </el-form-item>
-                <el-form-item label="Keys">
+                <el-form-item label="Key Bindings">
                     <div class="key-tags">
                         <el-tag
                             v-for="(key, index) in editingButton.keys"
                             :key="index"
                             closable
+                            size="default"
                             @close="removeKey(index)"
-                            class="key-tag"
                         >
                             {{ key }}
                         </el-tag>
+                        <el-tag v-if="editingButton.keys.length === 0" type="info" size="small">No keys configured</el-tag>
                     </div>
                     <div class="key-input-group">
                         <el-select 
                             v-model="selectedModifier" 
-                            placeholder="Modifier (optional)"
+                            placeholder="Modifier"
                             clearable
-                            style="width: 140px"
+                            size="default"
                         >
                             <el-option 
                                 v-for="mod in modifierKeys" 
                                 :key="mod" 
-                                :label="mod.toUpperCase()" 
+                                :label="mod.toUpperCase()"
                                 :value="mod"
                             ></el-option>
                         </el-select>
@@ -109,7 +109,7 @@
                             placeholder="Special Key"
                             clearable
                             filterable
-                            style="width: 140px; margin-left: 8px"
+                            size="default"
                         >
                             <el-option 
                                 v-for="key in specialKeys" 
@@ -120,38 +120,46 @@
                         </el-select>
                         <el-input 
                             v-model="customKeyInput" 
-                            placeholder="Or type a key"
-                            style="width: 100px; margin-left: 8px"
+                            placeholder="Custom key"
+                            size="default"
                             @keyup.enter="addKey"
                         ></el-input>
-                        <el-button type="primary" @click="addKey" style="margin-left: 8px">Add</el-button>
+                        <el-button type="primary" size="default" @click="addKey">Add Key</el-button>
                     </div>
-                    <p class="key-hint">Examples: ctrl+alt+del, shift+a, space</p>
+                    <p class="key-hint">Add modifier keys first, then the main key (e.g., ctrl, alt, del)</p>
                 </el-form-item>
-                <el-form-item label="Color">
-                    <el-color-picker v-model="editingButton.color"></el-color-picker>
+                <el-form-item label="Button Color">
+                    <el-color-picker v-model="editingButton.color" size="default"></el-color-picker>
                 </el-form-item>
-                <el-form-item label="Size">
+                <el-form-item label="Width">
                     <el-slider 
                         v-model="editingButton.width" 
                         :min="50" 
                         :max="300" 
                         :step="10"
                         show-input
+                        :show-input-controls="false"
                     ></el-slider>
+                </el-form-item>
+                <el-form-item label="Height">
                     <el-slider 
                         v-model="editingButton.height" 
                         :min="50" 
                         :max="300" 
                         :step="10"
                         show-input
+                        :show-input-controls="false"
                     ></el-slider>
                 </el-form-item>
             </el-form>
             <template #footer>
-                <el-button type="danger" @click="deleteButton" v-if="editingButton.id">Delete</el-button>
-                <el-button @click="showEditDialog = false">Cancel</el-button>
-                <el-button type="primary" @click="saveButtonEdit">Save</el-button>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between;">
+                    <el-button type="danger" size="default" @click="deleteButton" v-if="editingButton.id">Delete</el-button>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <el-button size="default" @click="showEditDialog = false">Cancel</el-button>
+                        <el-button type="primary" size="default" @click="saveButtonEdit">Save</el-button>
+                    </div>
+                </div>
             </template>
         </el-dialog>
         

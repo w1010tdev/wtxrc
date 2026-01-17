@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, onMounted, onUnmounted, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
 
 // Helper functions for showing messages
 const showMessage = {
@@ -56,6 +56,14 @@ const app = createApp({
         const hasExistingMainDevice = ref(false);
         const isMainDevice = ref(false);
         const gyroData = reactive({ alpha: 0, beta: 0, gamma: 0 });
+        
+        // Responsive dialog width
+        const dialogWidth = computed(() => {
+            if (typeof window !== 'undefined' && window.innerWidth < 500) {
+                return '95%';
+            }
+            return '500px';
+        });
         
         // Track active buttons (currently pressed) - use reactive object
         const activeButtonsMap = reactive({});
@@ -456,6 +464,7 @@ const app = createApp({
             hasExistingMainDevice,
             isMainDevice,
             gyroData,
+            dialogWidth,
             activeButtons,
             activeButtonsMap,
             toggleEditMode,
