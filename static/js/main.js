@@ -3,7 +3,7 @@ const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } =
 // Constants
 const MIN_BUTTON_SIZE = 50;
 const MAX_BUTTON_SIZE = 200;
-const BUTTON_EVENT_DELAY = 50; // Delay in ms between button_down and button_up events
+const BUTTON_EVENT_DELAY = 0; // Delay in ms between button_down and button_up events
 
 // Helper functions for showing messages
 const showMessage = {
@@ -282,7 +282,8 @@ const app = createApp({
         const handleButtonPress = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
-            
+            console.log(`Button ${btn.label} down`);
+            socket.emit('button_down', { id: btn.id, label: btn.label });
             activeButtonsMap[btnId] = true;
             markDirty();
             // Visual feedback only - key action will be executed on pointer release
@@ -301,15 +302,8 @@ const app = createApp({
         const executeButtonAction = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
-            
-            // Send button_down first, then button_up after a small delay
-            // This allows the server to properly handle the sequence
-            socket.emit('button_down', { id: btn.id, label: btn.label });
-            const timeoutId = setTimeout(() => {
-                socket.emit('button_up', { id: btn.id });
-                pendingButtonTimeouts.delete(timeoutId);
-            }, BUTTON_EVENT_DELAY);
-            pendingButtonTimeouts.add(timeoutId);
+            console.log(`Button ${btn.label} up`);
+            socket.emit('button_up', { id: btn.id });
         };
         
         // Canvas event handlers
@@ -332,9 +326,8 @@ const app = createApp({
             const { x, y } = pageToCanvas(e.clientX, e.clientY);
             const hit = getButtonAtPoint(x, y);
             
-            if (!hit) return;
-            
             if (isEditing.value) {
+                if (!hit) return;
                 // Check if on resize handle
                 if (isOnResizeHandle(hit.button, x, y)) {
                     dragState = {
@@ -354,9 +347,15 @@ const app = createApp({
                     };
                 }
             } else {
-                // Normal mode - track button press
-                pointerToButton.set(e.pointerId, hit.button.id);
-                handleButtonPress(hit.button.id);
+                // Normal mode - track pointer even if not on button initially
+                // This allows for slide-in detection in pointermove
+                if (hit) {
+                    pointerToButton.set(e.pointerId, hit.button.id);
+                    handleButtonPress(hit.button.id);
+                } else {
+                    // Track pointer with no button initially
+                    pointerToButton.set(e.pointerId, null);
+                }
             }
         };
         
@@ -379,9 +378,10 @@ const app = createApp({
                 markDirty();
             } else if (!isEditing.value) {
                 // Check if pointer moved to different button
-                const currentBtnId = pointerToButton.get(e.pointerId);
-                if (currentBtnId === undefined) return;
+                // Only handle tracked pointers
+                if (!pointerToButton.has(e.pointerId)) return;
                 
+                const currentBtnId = pointerToButton.get(e.pointerId);
                 const hit = getButtonAtPoint(x, y);
                 const newBtnId = hit ? hit.button.id : null;
                 
@@ -390,12 +390,10 @@ const app = createApp({
                     if (currentBtnId) {
                         handleButtonRelease(currentBtnId);
                     }
-                    // Press new button
+                    // Press new button or update to null
+                    pointerToButton.set(e.pointerId, newBtnId);
                     if (newBtnId) {
-                        pointerToButton.set(e.pointerId, newBtnId);
                         handleButtonPress(newBtnId);
-                    } else {
-                        pointerToButton.delete(e.pointerId);
                     }
                 }
             }
