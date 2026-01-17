@@ -3,6 +3,6 @@ flask-socketio
 pynput
 eventlet
 
-# Optional: For virtual joystick in driving mode
+# 可选：驾驶模式下用于虚拟摇杆的依赖
 # Windows: pip install vgamepad (also requires ViGEmBus driver)
 # Linux: pip install python-uinput

@@ -5,38 +5,38 @@ const MIN_BUTTON_SIZE = 50;
 const MAX_BUTTON_SIZE = 200;
 const BUTTON_EVENT_DELAY = 0; // Delay in ms between button_down and button_up events
 
-// Helper functions for showing messages
+// 用于显示消息的辅助函数
 const showMessage = {
     success: (msg) => {
         if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
             ElementPlus.ElMessage.success(msg);
         } else {
-            console.log('[Success]', msg);
+            console.log('[成功]', msg);
         }
     },
     error: (msg) => {
         if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
             ElementPlus.ElMessage.error(msg);
         } else {
-            console.error('[Error]', msg);
+            console.error('[错误]', msg);
         }
     },
     warning: (msg) => {
         if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
             ElementPlus.ElMessage.warning(msg);
         } else {
-            console.warn('[Warning]', msg);
+            console.warn('[警告]', msg);
         }
     }
 };
 
-// Element Plus default button colors
+// Element Plus 默认按钮配色
 const BUTTON_COLORS = [
-    { name: 'Primary', color: '#409eff' },
-    { name: 'Success', color: '#67c23a' },
-    { name: 'Warning', color: '#e6a23c' },
-    { name: 'Danger', color: '#f56c6c' },
-    { name: 'Info', color: '#909399' }
+    { name: '主色', color: '#409eff' },
+    { name: '成功', color: '#67c23a' },
+    { name: '警告', color: '#e6a23c' },
+    { name: '危险', color: '#f56c6c' },
+    { name: '信息', color: '#909399' }
 ];
 
 const app = createApp({
@@ -55,7 +55,7 @@ const app = createApp({
         let canvasHeight = 0;
         let animationFrameId = null;
         
-        // Edit dialog state
+        // 编辑对话态
         const showEditDialog = ref(false);
         const editingButton = reactive({
             id: '',
@@ -67,11 +67,11 @@ const app = createApp({
             x: 10,
             y: 10
         });
-        const selectedModifiers = ref([]); // Support multiple modifiers
+        const selectedModifiers = ref([]); // 支持多个修饰键
         const selectedSpecialKey = ref('');
         const customKeyInput = ref('');
         
-        // Driving mode state
+        // 驾驶模式状态
         const showMainDeviceDialog = ref(false);
         const hasExistingMainDevice = ref(false);
         const isMainDevice = ref(false);
@@ -94,7 +94,7 @@ const app = createApp({
         // Timeout tracking for button event delays
         const pendingButtonTimeouts = new Set();
         
-        // Drag/resize state for edit mode
+        // 编辑模式下的拖拽/缩放状态
         let dragState = null; // { buttonIndex, mode: 'move'|'resize', offsetX, offsetY, corner }
         
         // Load initial config
@@ -108,7 +108,7 @@ const app = createApp({
                 specialKeys.value = data.special_keys || [];
                 markDirty();
             } catch (error) {
-                console.error('Failed to load config:', error);
+                console.error('加载配置失败：', error);
             }
         };
         
@@ -232,7 +232,7 @@ const app = createApp({
             ctx.fillText(btn.label, x + width/2, y + height/2);
             ctx.shadowBlur = 0;
             
-            // Draw resize handle in edit mode
+            // 在编辑模式下绘制缩放把手
             if (isEditing.value) {
                 const handleSize = 12;
                 ctx.fillStyle = '#409eff';
@@ -282,7 +282,7 @@ const app = createApp({
         const handleButtonPress = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
-            console.log(`Button ${btn.label} down`);
+            console.log(`按钮 ${btn.label} 按下`);
             socket.emit('button_down', { id: btn.id, label: btn.label });
             activeButtonsMap[btnId] = true;
             markDirty();
@@ -302,7 +302,7 @@ const app = createApp({
         const executeButtonAction = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
-            console.log(`Button ${btn.label} up`);
+            console.log(`按钮 ${btn.label} 抬起`);
             socket.emit('button_up', { id: btn.id });
         };
         
@@ -416,7 +416,7 @@ const app = createApp({
             }
         };
         
-        // Double-click to edit button
+        // 双击以编辑按钮
         const onCanvasDoubleClick = (e) => {
             if (!isEditing.value) return;
             
@@ -428,10 +428,10 @@ const app = createApp({
             }
         };
         
-        // Edit mode functions
+        // 编辑模式相关函数
         const toggleEditMode = () => {
             isEditing.value = !isEditing.value;
-            // Clear active buttons when entering edit mode
+            // 进入编辑模式时清除激活按键
             if (isEditing.value) {
                 Object.keys(activeButtonsMap).forEach(btnId => {
                     handleButtonRelease(btnId);
@@ -534,7 +534,7 @@ const app = createApp({
                         buttonsData.value[index] = { ...buttonData };
                     }
                 } else {
-                    // Add new button
+                    // 添加新按钮
                     const response = await fetch('/api/add_button', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -548,8 +548,8 @@ const app = createApp({
                 markDirty();
                 showEditDialog.value = false;
             } catch (error) {
-                console.error('Failed to save button:', error);
-                showMessage.error('Failed to save button');
+                console.error('保存按钮失败：', error);
+                showMessage.error('保存按钮失败');
             }
         };
         
@@ -572,7 +572,7 @@ const app = createApp({
             }
         };
         
-        // Driving mode functions
+        // 驾驶模式相关函数
         const setAsMainDevice = (isMain) => {
             socket.emit('set_main_device', { is_main: isMain });
             showMainDeviceDialog.value = false;
@@ -638,7 +638,7 @@ const app = createApp({
                 initCanvas();
                 setupCanvasEvents();
                 
-                // Setup double-click
+                // 设置双击处理
                 const canvas = canvasRef.value;
                 if (canvas) {
                     canvas.addEventListener('dblclick', onCanvasDoubleClick);

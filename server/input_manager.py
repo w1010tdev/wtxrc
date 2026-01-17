@@ -101,8 +101,8 @@ def parse_key(k):
 
 def execute_combination(keys):
     """
-    Presses keys in order, holds them, then releases in reverse order.
-    Or just press all then release all.
+    依次按下按键、保持，然后按相反顺序释放。
+    或者一次性按下所有按键再全部释放。
     """
     if not HAS_PYNPUT:
         print(f"[Simulated] Executing: {keys}")

@@ -7,7 +7,7 @@
             "keys": [
                 "space"
             ],
-            "label": "Jump",
+            "label": "跳跃",
             "width": 100,
             "x": 10,
             "y": 10
@@ -19,7 +19,7 @@
             "keys": [
                 "ctrl"
             ],
-            "label": "Crouch",
+            "label": "下蹲",
             "width": 100,
             "x": 398,
             "y": 138
@@ -32,7 +32,7 @@
                 "a",
                 "b"
             ],
-            "label": "Combo A",
+            "label": "连招A",
             "width": 100,
             "x": 382,
             "y": 5
@@ -44,7 +44,7 @@
             "keys": [
                 "esc"
             ],
-            "label": "Menu",
+            "label": "菜单",
             "width": 100,
             "x": 172,
             "y": 100

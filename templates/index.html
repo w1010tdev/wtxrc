@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>W-Touch Remote</title>
-    <!-- Element Plus CSS -->
+    <title>wtxrc — 远程控制</title>
+    <!-- Element Plus 样式 -->
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <link rel="stylesheet" href="/static/css/style.css">
     <!-- Vue 3 -->
@@ -17,9 +17,9 @@
     {% raw %}
     <div id="app">
         <div id="controls-bar">
-            <span class="brand">W-Touch <span class="version">RC</span></span>
+            <span class="brand">wtxrc</span>
             <div class="mode-badge" v-if="mode === 'driving'">
-                <el-tag type="warning" size="small">🎮 Driving</el-tag>
+                <el-tag type="warning" size="small">🎮 驾驶模式</el-tag>
             </div>
             <div class="actions">
                 <el-button 
@@ -27,8 +27,8 @@
                     size="small"
                     @click="toggleEditMode"
                 >
-                    <span v-if="!isEditing">⚙️ Edit</span>
-                    <span v-else>✓ Done</span>
+                    <span v-if="!isEditing">⚙️ 编辑</span>
+                    <span v-else>✓ 完成</span>
                 </el-button>
                 <el-button 
                     v-if="isEditing"
@@ -36,7 +36,7 @@
                     size="small"
                     @click="addNewButton"
                 >
-                    + Add
+                    + 添加
                 </el-button>
                 <el-button 
                     v-show="isEditing"
@@ -44,41 +44,41 @@
                     size="small"
                     @click="saveLayout"
                 >
-                    💾 Save
+                    💾 保存
                 </el-button>
             </div>
         </div>
         
-        <!-- Main Device Dialog (Driving Mode) -->
+        <!-- 主设备对话（驾驶模式） -->
         <el-dialog
             v-model="showMainDeviceDialog"
-            title="Set as Main Device?"
+            title="设为主设备？"
             :width="dialogWidth"
             :close-on-click-modal="false"
         >
-            <p style="margin-bottom: 12px;">In driving mode, the main device will send gyroscope data to control steering.</p>
-            <p v-if="hasExistingMainDevice" style="color: var(--el-color-warning);">Note: Another device is currently set as main.</p>
+            <p style="margin-bottom: 12px;">在驾驶模式下，主设备会发送陀螺仪数据用于转向控制。</p>
+            <p v-if="hasExistingMainDevice" style="color: var(--el-color-warning);">注意：当前已有其它设备被设置为主设备。</p>
             <template #footer>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                    <el-button size="default" @click="setAsMainDevice(false)">Regular Controller</el-button>
-                    <el-button type="primary" size="default" @click="setAsMainDevice(true)">Set as Main</el-button>
+                    <el-button size="default" @click="setAsMainDevice(false)">普通控制器</el-button>
+                    <el-button type="primary" size="default" @click="setAsMainDevice(true)">设为主设备</el-button>
                 </div>
             </template>
         </el-dialog>
 
-        <!-- Button Edit Dialog -->
+        <!-- 按钮编辑对话 -->
         <el-dialog
             v-model="showEditDialog"
-            title="Configure Button"
+            title="按钮配置"
             :width="dialogWidth"
             :close-on-click-modal="false"
         >
             <el-form :model="editingButton" label-position="top">
-                <el-form-item label="Button Label">
-                    <el-input v-model="editingButton.label" placeholder="Enter button name"></el-input>
+                <el-form-item label="按钮标签">
+                    <el-input v-model="editingButton.label" placeholder="输入按钮名称"></el-input>
                 </el-form-item>
                 
-                <el-form-item label="Key Bindings">
+                <el-form-item label="按键绑定">
                     <div class="key-tags">
                         <el-tag
                             v-for="(key, index) in editingButton.keys"
@@ -89,12 +89,12 @@
                         >
                             {{ key }}
                         </el-tag>
-                        <el-tag v-if="editingButton.keys.length === 0" type="info" size="small">No keys configured</el-tag>
+                        <el-tag v-if="editingButton.keys.length === 0" type="info" size="small">未配置按键</el-tag>
                     </div>
                     <div class="key-input-group">
                         <el-select 
                             v-model="selectedModifiers"
-                            placeholder="Modifiers"
+                            placeholder="修饰键"
                             clearable
                             multiple
                             collapse-tags
@@ -109,7 +109,7 @@
                         </el-select>
                         <el-select 
                             v-model="selectedSpecialKey" 
-                            placeholder="Special Key"
+                            placeholder="特殊按键"
                             clearable
                             filterable
                             size="default"
@@ -123,16 +123,16 @@
                         </el-select>
                         <el-input 
                             v-model="customKeyInput" 
-                            placeholder="Custom key"
+                            placeholder="自定义按键"
                             size="default"
                             @keyup.enter="addKey"
                         ></el-input>
-                        <el-button type="primary" size="default" @click="addKey">Add Keys</el-button>
+                        <el-button type="primary" size="default" @click="addKey">添加按键</el-button>
                     </div>
-                    <p class="key-hint">Select multiple modifiers (ctrl, alt, shift) then add a key (e.g., del for Ctrl+Alt+Del)</p>
+                    <p class="key-hint">先选择修饰键（ctrl、alt、shift），再添加主按键（例如用 del 表示 Ctrl+Alt+Del）</p>
                 </el-form-item>
                 
-                <el-form-item label="Button Style">
+                <el-form-item label="按钮样式">
                     <el-radio-group v-model="editingButton.colorIndex">
                         <el-radio-button 
                             v-for="(color, index) in BUTTON_COLORS" 
@@ -144,10 +144,10 @@
                     </el-radio-group>
                 </el-form-item>
                 
-                <el-form-item label="Button Size">
+                <el-form-item label="按钮大小">
                     <div class="size-inputs">
                         <div class="size-input-row">
-                            <span>Width:</span>
+                            <span>宽度：</span>
                             <el-slider 
                                 v-model="editingButton.width" 
                                 :min="50" 
@@ -158,7 +158,7 @@
                             ></el-slider>
                         </div>
                         <div class="size-input-row">
-                            <span>Height:</span>
+                            <span>高度：</span>
                             <el-slider 
                                 v-model="editingButton.height" 
                                 :min="50" 
@@ -169,15 +169,15 @@
                             ></el-slider>
                         </div>
                     </div>
-                    <p class="key-hint">You can also drag the corner handle in edit mode to resize</p>
+                    <p class="key-hint">也可以在编辑模式下拖拽角点来调整大小</p>
                 </el-form-item>
             </el-form>
             <template #footer>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between;">
-                    <el-button type="danger" size="default" @click="deleteButton" v-if="editingButton.id">Delete</el-button>
+                    <el-button type="danger" size="default" @click="deleteButton" v-if="editingButton.id">删除</el-button>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <el-button size="default" @click="showEditDialog = false">Cancel</el-button>
-                        <el-button type="primary" size="default" @click="saveButtonEdit">Save</el-button>
+                        <el-button size="default" @click="showEditDialog = false">取消</el-button>
+                        <el-button type="primary" size="default" @click="saveButtonEdit">保存</el-button>
                     </div>
                 </div>
             </template>
@@ -187,13 +187,13 @@
         <div id="game-pad-container">
             <canvas ref="canvasRef" id="game-pad-canvas"></canvas>
             <div v-if="isEditing" class="edit-hint">
-                <el-tag type="info" size="small">Drag to move • Drag corner to resize • Double-click to edit</el-tag>
+                <el-tag type="info" size="small">拖动移动 • 拖拽角点调整大小 • 双击编辑</el-tag>
             </div>
         </div>
         
-        <!-- Gyroscope Status (Driving Mode) -->
+        <!-- 陀螺仪状态（驾驶模式） -->
         <div v-if="mode === 'driving' && isMainDevice" class="gyro-status">
-            <el-tag type="success">🎮 Main Device - Gyro Active</el-tag>
+            <el-tag type="success">🎮 主设备 - 陀螺仪已激活</el-tag>
             <div class="gyro-values">
                 α: {{ gyroData.alpha.toFixed(1) }}° 
                 β: {{ gyroData.beta.toFixed(1) }}° 

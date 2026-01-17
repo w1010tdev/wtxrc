@@ -7,7 +7,7 @@ import multiprocessing
 from overlay import run_overlay
 import input_manager
 
-# Add config to path
+# 将配置目录加入路径以便导入
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import config
 
@@ -44,7 +44,7 @@ def index():
 @app.route('/api/config')
 def get_config():
     button_config = load_config()
-    # Add mode and other settings from config.py
+    # 从 config.py 加载模式和其它设置
     button_config['mode'] = config.MODE
     button_config['modifier_keys'] = config.MODIFIER_KEYS
     button_config['special_keys'] = config.SPECIAL_KEYS
@@ -65,7 +65,7 @@ def update_button():
             current_config['buttons'][i].update(data)
             break
     else:
-        # Button not found, add it
+        # 未找到按钮 -> 添加它
         current_config['buttons'].append(data)
     
     save_config(current_config)
@@ -73,7 +73,7 @@ def update_button():
 
 @app.route('/api/add_button', methods=['POST'])
 def add_button():
-    """Add a new button"""
+    """添加一个新按钮"""
     data = request.json
     current_config = load_config()
     
@@ -125,7 +125,7 @@ def handle_set_main_device(data):
     is_main = data.get('is_main', False)
     
     if is_main:
-        # Remove main status from previous main device
+        # 从之前的主设备移除主设备状态
         if main_device_sid and main_device_sid in connected_devices:
             connected_devices[main_device_sid]['is_main'] = False
             socketio.emit('main_status_changed', {'is_main': False}, to=main_device_sid)
@@ -141,11 +141,11 @@ def handle_set_main_device(data):
 
 @socketio.on('gyro_data')
 def handle_gyro_data(data):
-    """Handle gyroscope data from main device in driving mode"""
+    """处理来自主设备的驾驶模式陀螺仪数据"""
     global main_device_sid
     sid = request.sid
     
-    # Only accept gyro data from main device
+    # 仅接受来自主设备的陀螺仪数据
     if sid != main_device_sid:
         return
     

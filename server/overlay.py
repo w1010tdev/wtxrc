@@ -75,7 +75,7 @@ class OverlayApp:
                     cmd = msg.get('cmd')
                     if cmd == 'SHOW':
                         text = msg.get('text', '')
-                        print(f"[Overlay] {text}")
+                        print(f"[覆盖层] {text}")
                     elif cmd == 'GYRO':
                         if self.joystick and self.gyro_processor:
                             gamma = msg.get('gamma', 0)

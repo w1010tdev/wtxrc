@@ -1,7 +1,7 @@
 """
-Virtual Joystick Manager for W-Touch Remote.
+wtxrc 的虚拟摇杆管理器。
 
-This module provides virtual joystick functionality for driving mode.
+该模块为驾驶模式提供虚拟摇杆功能。
 It uses vgamepad on Windows or uinput on Linux to create a virtual game controller.
 """
 
@@ -29,7 +29,7 @@ class VirtualJoystick:
                 print("vgamepad not installed. Install with: pip install vgamepad")
                 print("Also requires ViGEmBus driver: https://github.com/ViGEm/ViGEmBus/releases")
             except Exception as e:
-                print(f"Failed to initialize virtual gamepad on Windows: {e}")
+                print(f"在 Windows 上初始化虚拟手柄失败：{e}")
         elif self.system == 'Linux':
             try:
                 import uinput
@@ -51,14 +51,14 @@ class VirtualJoystick:
                 self.initialized = True
                 print("Virtual gamepad initialized (Linux)")
             except PermissionError:
-                print("Permission denied. Try running with sudo or add uinput permissions.")
+                print("权限被拒绝。请使用 sudo 运行或添加 uinput 权限。")
                 print("You may need to: sudo modprobe uinput")
-                print("Or add yourself to the input group: sudo usermod -a -G input $USER")
+                print("或者将自己加入 input 组：sudo usermod -a -G input $USER")
             except OSError as e:
-                print(f"Failed to create uinput device: {e}")
+                print(f"创建 uinput 设备失败：{e}")
                 print("Make sure uinput kernel module is loaded: sudo modprobe uinput")
             except Exception as e:
-                print(f"Failed to initialize virtual gamepad on Linux: {e}")
+                print(f"在 Linux 上初始化虚拟手柄失败：{e}")
         else:
             print(f"Virtual joystick not supported on {self.system}")
     
