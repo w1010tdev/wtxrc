@@ -91,6 +91,9 @@ const app = createApp({
         // Pointer tracking for multi-touch support
         const pointerToButton = new Map(); // pointerId -> buttonId
         
+        // Timeout tracking for button event delays
+        const pendingButtonTimeouts = new Set();
+        
         // Drag/resize state for edit mode
         let dragState = null; // { buttonIndex, mode: 'move'|'resize', offsetX, offsetY, corner }
         
@@ -302,9 +305,11 @@ const app = createApp({
             // Send button_down first, then button_up after a small delay
             // This allows the server to properly handle the sequence
             socket.emit('button_down', { id: btn.id, label: btn.label });
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 socket.emit('button_up', { id: btn.id });
+                pendingButtonTimeouts.delete(timeoutId);
             }, BUTTON_EVENT_DELAY);
+            pendingButtonTimeouts.add(timeoutId);
         };
         
         // Canvas event handlers
@@ -648,6 +653,9 @@ const app = createApp({
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
             }
+            // Clear any pending button timeouts
+            pendingButtonTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+            pendingButtonTimeouts.clear();
             window.removeEventListener('resize', resizeCanvas);
         });
         
