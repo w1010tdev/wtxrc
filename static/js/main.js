@@ -1,5 +1,30 @@
 const { createApp, ref, reactive, onMounted, onUnmounted, nextTick } = Vue;
 
+// Helper functions for showing messages
+const showMessage = {
+    success: (msg) => {
+        if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
+            ElementPlus.ElMessage.success(msg);
+        } else {
+            console.log('[Success]', msg);
+        }
+    },
+    error: (msg) => {
+        if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
+            ElementPlus.ElMessage.error(msg);
+        } else {
+            console.error('[Error]', msg);
+        }
+    },
+    warning: (msg) => {
+        if (typeof ElementPlus !== 'undefined' && ElementPlus.ElMessage) {
+            ElementPlus.ElMessage.warning(msg);
+        } else {
+            console.warn('[Warning]', msg);
+        }
+    }
+};
+
 const app = createApp({
     setup() {
         const socket = io();
@@ -32,8 +57,14 @@ const app = createApp({
         const isMainDevice = ref(false);
         const gyroData = reactive({ alpha: 0, beta: 0, gamma: 0 });
         
-        // Track active buttons (currently pressed)
-        const activeButtons = ref(new Set());
+        // Track active buttons (currently pressed) - use reactive object
+        const activeButtonsMap = reactive({});
+        const activeButtons = {
+            has(id) { return !!activeButtonsMap[id]; },
+            add(id) { activeButtonsMap[id] = true; },
+            delete(id) { delete activeButtonsMap[id]; },
+            clear() { Object.keys(activeButtonsMap).forEach(k => delete activeButtonsMap[k]); }
+        };
         
         // Drag state
         let draggedButton = null;
@@ -77,8 +108,7 @@ const app = createApp({
             const btn = getButtonData(btnId);
             if (!btn) return;
             
-            activeButtons.value.add(btnId);
-            activeButtons.value = new Set(activeButtons.value); // Trigger reactivity
+            activeButtons.add(btnId);
             socket.emit('button_down', { id: btn.id, label: btn.label });
         };
         
@@ -87,8 +117,7 @@ const app = createApp({
             const btn = getButtonData(btnId);
             if (!btn) return;
             
-            activeButtons.value.delete(btnId);
-            activeButtons.value = new Set(activeButtons.value); // Trigger reactivity
+            activeButtons.delete(btnId);
             socket.emit('button_up', { id: btn.id });
         };
         
@@ -206,10 +235,10 @@ const app = createApp({
             isEditing.value = !isEditing.value;
             // Clear active buttons when entering edit mode
             if (isEditing.value) {
-                for (const btnId of activeButtons.value) {
+                Object.keys(activeButtonsMap).forEach(btnId => {
                     handleButtonRelease(btnId);
-                }
-                activeButtons.value = new Set();
+                });
+                activeButtons.clear();
                 activeTouches.clear();
             }
         };
@@ -315,7 +344,7 @@ const app = createApp({
                 showEditDialog.value = false;
             } catch (error) {
                 console.error('Failed to save button:', error);
-                ElementPlus.ElMessage.error('Failed to save button');
+                showMessage.error('Failed to save button');
             }
         };
         
@@ -333,7 +362,7 @@ const app = createApp({
                 showEditDialog.value = false;
             } catch (error) {
                 console.error('Failed to delete button:', error);
-                ElementPlus.ElMessage.error('Failed to delete button');
+                showMessage.error('Failed to delete button');
             }
         };
         
@@ -395,7 +424,7 @@ const app = createApp({
         });
         
         socket.on('layout_saved', (data) => {
-            ElementPlus.ElMessage.success('Layout Saved!');
+            showMessage.success('Layout Saved!');
             isEditing.value = false;
         });
         
@@ -428,6 +457,7 @@ const app = createApp({
             isMainDevice,
             gyroData,
             activeButtons,
+            activeButtonsMap,
             toggleEditMode,
             saveLayout,
             editButton,

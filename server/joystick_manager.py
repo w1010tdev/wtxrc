@@ -33,6 +33,11 @@ class VirtualJoystick:
         elif self.system == 'Linux':
             try:
                 import uinput
+            except ImportError:
+                print("python-uinput not installed. Install with: pip install python-uinput")
+                return
+                
+            try:
                 self.gamepad = uinput.Device([
                     uinput.ABS_X + (0, 32767, 0, 0),
                     uinput.ABS_Y + (0, 32767, 0, 0),
@@ -45,10 +50,13 @@ class VirtualJoystick:
                 ])
                 self.initialized = True
                 print("Virtual gamepad initialized (Linux)")
-            except ImportError:
-                print("python-uinput not installed. Install with: pip install python-uinput")
             except PermissionError:
                 print("Permission denied. Try running with sudo or add uinput permissions.")
+                print("You may need to: sudo modprobe uinput")
+                print("Or add yourself to the input group: sudo usermod -a -G input $USER")
+            except OSError as e:
+                print(f"Failed to create uinput device: {e}")
+                print("Make sure uinput kernel module is loaded: sudo modprobe uinput")
             except Exception as e:
                 print(f"Failed to initialize virtual gamepad on Linux: {e}")
         else:

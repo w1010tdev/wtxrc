@@ -161,7 +161,7 @@
                 v-for="(btn, index) in buttonsData"
                 :key="btn.id"
                 class="game-btn"
-                :class="{ editing: isEditing, active: activeButtons.has(btn.id) }"
+                :class="{ editing: isEditing, active: activeButtonsMap[btn.id] }"
                 :style="{
                     backgroundColor: btn.color || '#555',
                     left: btn.x + 'px',
