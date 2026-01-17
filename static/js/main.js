@@ -274,23 +274,33 @@ const app = createApp({
             };
         };
         
-        // Handle button press
+        // Handle button press (visual only, no key action)
         const handleButtonPress = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
             
             activeButtonsMap[btnId] = true;
             markDirty();
-            socket.emit('button_down', { id: btn.id, label: btn.label });
+            // Don't emit button_down here - only on release
         };
         
-        // Handle button release
+        // Handle button release (visual only)
         const handleButtonRelease = (btnId) => {
             if (!activeButtonsMap[btnId]) return;
             
             delete activeButtonsMap[btnId];
             markDirty();
-            socket.emit('button_up', { id: btnId });
+            // Don't emit button_up here
+        };
+        
+        // Execute button action (on final release)
+        const executeButtonAction = (btnId) => {
+            const btn = buttonsData.value.find(b => b.id === btnId);
+            if (!btn) return;
+            
+            // Send key press and release
+            socket.emit('button_down', { id: btn.id, label: btn.label });
+            socket.emit('button_up', { id: btn.id });
         };
         
         // Canvas event handlers
@@ -390,6 +400,9 @@ const app = createApp({
             } else {
                 const btnId = pointerToButton.get(e.pointerId);
                 if (btnId) {
+                    // Execute the button action on release
+                    executeButtonAction(btnId);
+                    // Clear visual state
                     handleButtonRelease(btnId);
                     pointerToButton.delete(e.pointerId);
                 }
