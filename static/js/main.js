@@ -65,12 +65,12 @@ const app = createApp({
             sliders: [],
             // 新的统一轴配置
             axis_config: {
-                left_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 },
-                left_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 },
-                right_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 },
-                right_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 },
-                left_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 },
-                right_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 45.0 }
+                left_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 }
             }
         });
         
@@ -192,11 +192,11 @@ const app = createApp({
                                     default_value: 0,
                                     peak_value: 1.0,
                                     deadzone: 0.05,
-                                    gyro_range: 45.0
+                                    gyro_range: 90.0
                                 };
                             } else if (drivingConfig.axis_config[axis].gyro_range === undefined) {
                                 // 为已存在的配置添加 gyro_range 字段
-                                drivingConfig.axis_config[axis].gyro_range = 45.0;
+                                drivingConfig.axis_config[axis].gyro_range = 90.0;
                             }
                         });
                     }
@@ -221,7 +221,7 @@ const app = createApp({
                     default_value: 0,
                     peak_value: 1.0,
                     deadzone: 0.05,
-                    gyro_range: 45.0
+                    gyro_range: 90.0
                 };
             });
             
@@ -786,7 +786,7 @@ const app = createApp({
                 orientation: btn.orientation || 'horizontal',
                 autoCenter: btn.autoCenter !== undefined ? btn.autoCenter : true,
                 axis: btn.axis || 'right_x',
-                rangeMode: btn.rangeMode || 'bipolar'
+                rangeMode: btn.rangeMode || 'bipolar'  // 向后兼容：旧的拖动条默认为bipolar
             });
             showEditDialog.value = true;
         };
@@ -824,7 +824,7 @@ const app = createApp({
                 autoCenter: true,
                 axis: 'right_x',
                 currentValue: 0.5,  // unipolar 模式默认值
-                rangeMode: 'unipolar'  // 默认为 unipolar 模式
+                rangeMode: 'unipolar'  // 新拖动条默认为 unipolar 模式（居中=0.5）
             });
             showEditDialog.value = true;
         };
