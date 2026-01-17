@@ -168,7 +168,8 @@ def handle_gyro_data(data):
     beta = data.get('beta', 0)    # X-axis rotation (front-back tilt)
     gamma = data.get('gamma', 0)  # Y-axis rotation (left-right tilt)
     
-    print(f"[GYRO] 收到陀螺仪数据: alpha={alpha:.2f}, beta={beta:.2f}, gamma={gamma:.2f}")
+    if config.DEBUG:
+        print(f"[GYRO] 收到陀螺仪数据: alpha={alpha:.2f}, beta={beta:.2f}, gamma={gamma:.2f}")
     
     # 发送到 overlay 进程用于显示（可选）
     # 注意: overlay 中也有陀螺仪处理，但那是为了兼容旧的驾驶模式
@@ -194,10 +195,12 @@ def handle_gyro_data(data):
         for gyro_axis, gamepad_axis in gyro_mapping.items():
             if gamepad_axis and gyro_axis in gyro_values:
                 value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
-                print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
+                if config.DEBUG:
+                    print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
                 virtual_joystick.set_axis(gamepad_axis, value)
     else:
-        print("[GYRO] 警告: 虚拟摇杆未初始化")
+        if config.DEBUG:
+            print("[GYRO] 警告: 虚拟摇杆未初始化")
 
 @socketio.on('button_down')
 def handle_button_down(data):
@@ -227,7 +230,8 @@ def handle_slider_value(data):
     slider_id = data.get('id')
     value = data.get('value', 0.0)  # -1.0 到 1.0
     
-    print(f"[SLIDER] 收到拖动条数据: id={slider_id}, value={value:.3f}")
+    if config.DEBUG:
+        print(f"[SLIDER] 收到拖动条数据: id={slider_id}, value={value:.3f}")
     
     # 保存当前值
     slider_values[slider_id] = value
@@ -241,12 +245,15 @@ def handle_slider_value(data):
         
         if slider and slider.get('axis'):
             axis = slider['axis']
-            print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
+            if config.DEBUG:
+                print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
             virtual_joystick.set_axis(axis, value)
         else:
-            print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
+            if config.DEBUG:
+                print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
     else:
-        print("[SLIDER] 警告: 虚拟摇杆未初始化")
+        if config.DEBUG:
+            print("[SLIDER] 警告: 虚拟摇杆未初始化")
 
 @socketio.on('save_layout')
 def handle_save_layout(data):
@@ -273,13 +280,15 @@ def normalize_gyro_value(gyro_value, gyro_axis):
 def init_virtual_joystick():
     """初始化驾驶模式的虚拟摇杆"""
     global virtual_joystick
-    print(f"[INIT] 当前模式: {config.MODE}")
+    if config.DEBUG:
+        print(f"[INIT] 当前模式: {config.MODE}")
     if config.MODE == 'driving':
         try:
             from joystick_manager import VirtualJoystick
             virtual_joystick = VirtualJoystick()
             if virtual_joystick.initialized:
-                print("[INIT] ✅ 虚拟摇杆已成功初始化")
+                if config.DEBUG:
+                    print("[INIT] ✅ 虚拟摇杆已成功初始化")
             else:
                 print("[INIT] ⚠️ 警告: 虚拟摇杆初始化失败")
         except Exception as e:
@@ -287,7 +296,8 @@ def init_virtual_joystick():
             import traceback
             traceback.print_exc()
     else:
-        print(f"[INIT] 非驾驶模式，跳过虚拟摇杆初始化")
+        if config.DEBUG:
+            print(f"[INIT] 非驾驶模式，跳过虚拟摇杆初始化")
 
 def start_overlay():
     global overlay_process

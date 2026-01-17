@@ -7,6 +7,10 @@
 # - "driving": 驾驶模拟模式，支持陀螺仪
 MODE = "driving"
 
+# 调试选项
+DEBUG = True  # 是否输出详细日志
+SHOW_JOYSTICK_MONITOR = True  # 是否显示虚拟手柄监视器悬浮窗
+
 # 服务器配置
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 5000

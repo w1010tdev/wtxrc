@@ -7,6 +7,25 @@ It uses vgamepad on Windows or uinput on Linux to create a virtual game controll
 
 import platform
 import threading
+import sys
+import os
+
+# 导入监视器
+sys.path.insert(0, os.path.dirname(__file__))
+try:
+    from config import config
+    HAS_CONFIG = True
+except:
+    HAS_CONFIG = False
+    config = None
+
+try:
+    from joystick_monitor import get_monitor, start_monitor
+    HAS_MONITOR = True
+except ImportError:
+    HAS_MONITOR = False
+    print("Warning: joystick_monitor not available")
+
 
 class VirtualJoystick:
     """Virtual joystick abstraction layer."""
@@ -16,6 +35,11 @@ class VirtualJoystick:
         self.gamepad = None
         self.initialized = False
         self._init_gamepad()
+        
+        # 启动监视器（如果配置允许）
+        if HAS_CONFIG and HAS_MONITOR and hasattr(config, 'SHOW_JOYSTICK_MONITOR'):
+            if config.SHOW_JOYSTICK_MONITOR:
+                start_monitor()
     
     def _init_gamepad(self):
         """Initialize the virtual gamepad based on the platform."""
@@ -101,7 +125,13 @@ class VirtualJoystick:
         else:
             value = max(-1.0, min(1.0, value))
         
-        # print(f"[JOYSTICK] 设置轴 {axis_name} = {value:.3f}")  # 可选：取消注释以启用详细日志
+        # 更新监视器
+        if HAS_MONITOR:
+            try:
+                from joystick_monitor import update_axis
+                update_axis(axis_name, value)
+            except:
+                pass
         
         if self.system == 'Windows':
             if axis_name == 'left_x':
