@@ -1,12 +1,18 @@
+/* W-Touch Remote - Clean Element Plus Style */
 :root {
-    --bg-color: #050510;
-    --grid-color: rgba(0, 255, 255, 0.1);
-    --primary: #00f3ff;
-    --secondary: #ff00ff;
-    --surface: rgba(20, 20, 35, 0.6);
-    --glass: rgba(255, 255, 255, 0.05);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --text-main: #e0e0e0;
+    --el-color-primary: #409eff;
+    --el-color-success: #67c23a;
+    --el-color-warning: #e6a23c;
+    --el-color-danger: #f56c6c;
+    --el-bg-color: #ffffff;
+    --el-text-color-primary: #303133;
+    --el-text-color-regular: #606266;
+    --el-border-color: #dcdfe6;
+    --el-border-color-light: #e4e7ed;
+}
+
+* {
+    box-sizing: border-box;
 }
 
 body, html {
@@ -15,42 +21,13 @@ body, html {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: var(--bg-color);
-    font-family: 'Rajdhani', sans-serif;
-    color: var(--text-main);
+    background-color: #f5f7fa;
+    font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+    color: var(--el-text-color-primary);
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
-}
-
-/* Background Effects */
-.bg-grid {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-image: 
-        linear-gradient(var(--grid-color) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-    background-size: 40px 40px;
-    z-index: 0;
-    pointer-events: none;
-    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0.2) 100%);
-}
-
-.scanline {
-    width: 100%;
-    height: 100px;
-    z-index: 10;
-    background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(0,0,0,0) 100%);
-    opacity: 0.1;
-    position: absolute;
-    bottom: 100%;
-    pointer-events: none;
-    animation: scanline 10s linear infinite;
-}
-
-@keyframes scanline {
-    0% { bottom: 100%; }
-    100% { bottom: -100px; }
+    -webkit-tap-highlight-color: transparent;
 }
 
 #app {
@@ -59,132 +36,261 @@ body, html {
     height: 100%;
     display: flex;
     flex-direction: column;
-    z-index: 1;
 }
 
 /* Top Bar */
 #controls-bar {
-    height: 60px;
-    background: rgba(10, 10, 15, 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--glass-border);
+    min-height: 50px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--el-border-color-light);
     display: flex;
     align-items: center;
-    padding: 0 20px;
+    padding: 8px 12px;
     justify-content: space-between;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    flex-wrap: wrap;
+    gap: 8px;
     z-index: 100;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
 .brand {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--primary);
-    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
-    letter-spacing: 2px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--el-color-primary);
+    white-space: nowrap;
 }
 
 .brand .version {
-    color: var(--secondary);
-    font-size: 0.8em;
+    color: var(--el-color-warning);
+    font-size: 0.9em;
+    margin-left: 4px;
 }
 
-.actions button {
-    background: var(--glass);
-    border: 1px solid var(--primary);
-    color: var(--primary);
-    padding: 8px 16px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-left: 10px;
-    border-radius: 4px; /* Angular sharp corners */
-    cursor: pointer;
-    transition: all 0.3s ease;
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+.mode-badge {
+    margin-left: 8px;
 }
 
-.actions button:hover {
-    background: rgba(0, 243, 255, 0.1);
-    box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
-    text-shadow: 0 0 5px var(--primary);
+.actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
-.actions button#toggle-edit-btn.editing {
-    border-color: var(--secondary);
-    color: var(--secondary);
-    background: rgba(255, 0, 255, 0.1);
-    box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
-}
-
-/* Game Area */
-#game-pad {
+/* Canvas Game Pad Area */
+#game-pad-container {
     flex-grow: 1;
     position: relative;
-    overflow: hidden; /* Prevent dragging outside somewhat */
+    overflow: hidden;
+    touch-action: none;
+    background-color: #f0f2f5;
 }
 
-/* Buttons */
-.game-btn {
+#game-pad-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+}
+
+.edit-hint {
     position: absolute;
-    border-radius: 10px; 
-    /* We use JS color in inline style, but add glass effect */
-    background-image: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255,255,255,0.2);
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+/* Key configuration styles */
+.key-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.key-input-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.key-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--el-text-color-regular);
+}
+
+/* Size input styling */
+.size-inputs {
+    width: 100%;
+}
+
+.size-input-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    color: white;
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 700;
-    font-size: 1.2em;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    box-shadow: 
-        0 4px 6px rgba(0,0,0,0.3),
-        inset 0 1px 0 rgba(255,255,255,0.2);
-    transition: transform 0.1s, box-shadow 0.1s, border-color 0.2s;
-    touch-action: none;
-    text-transform: uppercase;
+    gap: 12px;
+    margin-bottom: 8px;
 }
 
-.game-btn::after {
-    content: '';
-    position: absolute;
-    top: 5px; left: 5px; right: 5px; bottom: 5px;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px;
-    pointer-events: none;
+.size-input-row span {
+    min-width: 50px;
+    font-size: 13px;
+    color: var(--el-text-color-regular);
 }
 
-.game-btn:active {
-    transform: scale(0.96);
-    box-shadow: 0 2px 3px rgba(0,0,0,0.3);
-    border-color: var(--primary);
+.size-input-row .el-slider {
+    flex: 1;
 }
 
-/* Edit Mode Styling */
-.game-btn.editing {
-    border: 2px dashed var(--secondary);
-    animation: pulse-border 2s infinite;
-    cursor: move;
+/* Gyroscope status */
+.gyro-status {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    background: #ffffff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color);
+    z-index: 100;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
-.game-btn.editing::before {
-    content: 'drag';
-    position: absolute;
-    bottom: 2px;
-    right: 5px;
-    font-size: 0.6em;
-    opacity: 0.7;
-    font-family: 'Rajdhani', sans-serif;
+.gyro-values {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--el-text-color-regular);
+    font-family: monospace;
 }
 
-@keyframes pulse-border {
-    0% { border-color: rgba(255, 0, 255, 0.3); }
-    50% { border-color: rgba(255, 0, 255, 1); }
-    100% { border-color: rgba(255, 0, 255, 0.3); }
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    #controls-bar {
+        padding: 8px;
+        min-height: auto;
+    }
+    
+    .brand {
+        font-size: 1rem;
+    }
+    
+    .actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .actions .el-button {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    .mode-badge {
+        margin-left: 0;
+    }
+    
+    /* Dialog improvements for mobile */
+    .el-dialog {
+        margin: 5vh auto !important;
+        max-height: 90vh;
+    }
+    
+    .el-dialog__body {
+        max-height: 60vh;
+        overflow-y: auto;
+        padding: 15px;
+    }
+    
+    .el-form-item {
+        margin-bottom: 16px;
+    }
+    
+    .el-form-item__label {
+        float: none !important;
+        display: block;
+        text-align: left;
+        padding-bottom: 6px;
+    }
+    
+    .el-form-item__content {
+        margin-left: 0 !important;
+    }
+    
+    .key-input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .key-input-group .el-select,
+    .key-input-group .el-input {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-top: 6px;
+    }
+    
+    .key-input-group .el-button {
+        margin-left: 0 !important;
+        margin-top: 8px;
+        width: 100%;
+    }
+    
+    .el-radio-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    .el-radio-button {
+        margin-right: 0 !important;
+    }
+    
+    .gyro-status {
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        padding: 8px 12px;
+    }
+    
+    .edit-hint {
+        bottom: 5px;
+    }
+    
+    .edit-hint .el-tag {
+        font-size: 10px;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    #controls-bar {
+        padding: 6px;
+    }
+    
+    .brand {
+        font-size: 0.9rem;
+    }
+    
+    .actions .el-button {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+    
+    .actions .el-button .el-icon,
+    .actions .el-button span:first-child {
+        margin-right: 2px;
+    }
+}
+
+/* Landscape mode on mobile */
+@media (max-height: 480px) and (orientation: landscape) {
+    #controls-bar {
+        min-height: 40px;
+        padding: 4px 10px;
+    }
+    
+    .gyro-status {
+        bottom: 4px;
+        left: 4px;
+        padding: 6px 10px;
+        font-size: 11px;
+    }
 }
