@@ -27,6 +27,9 @@ main_device_sid = None
 virtual_joystick = None
 slider_values = {}  # 存储拖动条当前值
 
+# 向后兼容常量：旧配置（没有axis_config）使用的陀螺仪范围
+LEGACY_GYRO_RANGE = 45.0
+
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../config/buttons.json')
 
 def load_config():
@@ -190,11 +193,11 @@ def handle_gyro_data(data):
             if not gyro_mapping:
                 gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
             
-            # 使用旧的映射方式（默认使用45度范围保持向后兼容）
+            # 使用旧的映射方式（使用 LEGACY_GYRO_RANGE 保持向后兼容）
             gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
             for gyro_axis, gamepad_axis in gyro_mapping.items():
                 if gamepad_axis and gyro_axis in gyro_values:
-                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, 45.0)
+                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, LEGACY_GYRO_RANGE)
                     if config.DEBUG:
                         print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
                     virtual_joystick.set_axis(gamepad_axis, value)

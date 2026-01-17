@@ -151,6 +151,11 @@ const app = createApp({
             }
         };
         
+        // Helper function to get default value based on range mode
+        const getSliderDefaultValue = (rangeMode) => {
+            return rangeMode === 'unipolar' ? 0.5 : 0.0;
+        };
+        
         // Track active buttons (currently pressed) - supports multiple simultaneous presses
         const activeButtonsMap = reactive({});
         
@@ -558,8 +563,7 @@ const app = createApp({
                 // 拖动条释放后如果设置了自动归中，则重置值
                 if (btn.autoCenter) {
                     const rangeMode = btn.rangeMode || 'bipolar';
-                    // 根据范围模式设置默认值
-                    const defaultValue = rangeMode === 'unipolar' ? 0.5 : 0.0;
+                    const defaultValue = getSliderDefaultValue(rangeMode);
                     btn.currentValue = defaultValue;
                     socket.emit('slider_value', { id: btn.id, value: defaultValue });
                     markDirty();
@@ -823,8 +827,8 @@ const app = createApp({
                 orientation: 'horizontal',
                 autoCenter: true,
                 axis: 'right_x',
-                currentValue: 0.5,  // unipolar 模式默认值
-                rangeMode: 'unipolar'  // 新拖动条默认为 unipolar 模式（居中=0.5）
+                rangeMode: 'unipolar',  // 新拖动条默认为 unipolar 模式（居中=0.5）
+                currentValue: getSliderDefaultValue('unipolar')
             });
             showEditDialog.value = true;
         };
@@ -879,9 +883,7 @@ const app = createApp({
                 buttonData.orientation = editingButton.orientation;
                 buttonData.autoCenter = editingButton.autoCenter;
                 buttonData.rangeMode = editingButton.rangeMode || 'bipolar';
-                // 根据范围模式设置默认值
-                const defaultValue = buttonData.rangeMode === 'unipolar' ? 0.5 : 0.0;
-                buttonData.currentValue = editingButton.currentValue !== undefined ? editingButton.currentValue : defaultValue;
+                buttonData.currentValue = editingButton.currentValue !== undefined ? editingButton.currentValue : getSliderDefaultValue(buttonData.rangeMode);
                 // 不再保存 axis 属性，因为轴绑定现在在驾驶配置中统一管理
             }
             
