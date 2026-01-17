@@ -27,6 +27,9 @@ main_device_sid = None
 virtual_joystick = None
 slider_values = {}  # 存储拖动条当前值
 
+# 向后兼容常量：旧配置（没有axis_config）使用的陀螺仪范围
+LEGACY_GYRO_RANGE = 45.0
+
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../config/buttons.json')
 
 def load_config():
@@ -190,11 +193,11 @@ def handle_gyro_data(data):
             if not gyro_mapping:
                 gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
             
-            # 使用旧的映射方式
+            # 使用旧的映射方式（使用 LEGACY_GYRO_RANGE 保持向后兼容）
             gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
             for gyro_axis, gamepad_axis in gyro_mapping.items():
                 if gamepad_axis and gyro_axis in gyro_values:
-                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
+                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, LEGACY_GYRO_RANGE)
                     if config.DEBUG:
                         print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
                     virtual_joystick.set_axis(gamepad_axis, value)
@@ -205,13 +208,14 @@ def handle_gyro_data(data):
                 if axis_cfg.get('source_type') == 'gyro' and axis_cfg.get('source_id'):
                     gyro_axis = axis_cfg['source_id']
                     if gyro_axis in gyro_values:
-                        raw_value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
+                        gyro_range = axis_cfg.get('gyro_range', 45.0)  # 获取陀螺仪范围，默认45度
+                        raw_value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, gyro_range)
                         # 应用死区
                         value = apply_deadzone(raw_value, axis_cfg.get('deadzone', 0.05))
                         # 应用峰值限制
                         value = apply_peak_value(value, axis_cfg.get('peak_value', 1.0))
                         if config.DEBUG:
-                            print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                            print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [range={gyro_range}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
                         virtual_joystick.set_axis(gamepad_axis, value)
     else:
         if config.DEBUG:
@@ -294,18 +298,24 @@ def handle_save_layout(data):
     save_config(current_config)
     emit('layout_saved', {'status': 'success'})
 
-def normalize_gyro_value(gyro_value, gyro_axis):
-    """将陀螺仪值归一化到 -1.0 到 1.0 范围"""
-    # 这里可以根据实际情况调整归一化逻辑
-    if gyro_axis == 'gamma':  # 左右倾斜，范围大约 -90 到 90
-        return max(-1.0, min(1.0, gyro_value / 45.0))
-    elif gyro_axis == 'beta':  # 前后倾斜，范围大约 -180 到 180
-        return max(-1.0, min(1.0, gyro_value / 90.0))
-    elif gyro_axis == 'alpha':  # Z轴旋转，范围 0 到 360
+def normalize_gyro_value(gyro_value, gyro_axis, gyro_range=45.0):
+    """将陀螺仪值归一化到 -1.0 到 1.0 范围
+    
+    Args:
+        gyro_value: 陀螺仪原始值（度）
+        gyro_axis: 陀螺仪轴名称 ('alpha', 'beta', 'gamma')
+        gyro_range: 归一化范围（度），表示转动多少度达到满输出
+    
+    Returns:
+        归一化后的值，范围 [-1.0, 1.0]
+    """
+    if gyro_axis == 'alpha':  # Z轴旋转，范围 0 到 360
         # 转换为 -180 到 180
         normalized = gyro_value if gyro_value <= 180 else gyro_value - 360
-        return max(-1.0, min(1.0, normalized / 180.0))
-    return 0.0
+        return max(-1.0, min(1.0, normalized / gyro_range))
+    else:  # gamma (左右倾斜) 和 beta (前后倾斜)
+        return max(-1.0, min(1.0, gyro_value / gyro_range))
+
 
 def apply_deadzone(value, deadzone):
     """应用死区到输入值"""

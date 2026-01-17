@@ -176,6 +176,18 @@
                             ></el-input-number>
                         </template>
                     </el-table-column>
+                    <el-table-column label="陀螺仪范围" width="130">
+                        <template #default="scope">
+                            <el-input-number 
+                                v-model="scope.row.gyro_range" 
+                                :min="1" 
+                                :max="180" 
+                                :step="1" 
+                                size="small"
+                                :disabled="scope.row.source_type !== 'gyro'"
+                            ></el-input-number>
+                        </template>
+                    </el-table-column>
                 </el-table>
                 
                 <el-alert 
@@ -188,6 +200,7 @@
                         <li>默认值：轴的静止状态值（摇杆为0，扳机通常为0）</li>
                         <li>峰值：轴的最大输出值（1.0 = 100%）</li>
                         <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
+                        <li>陀螺仪范围：转动多少度达到满输出（如 90 度表示转动 90 度输出从 0 到 1）</li>
                         <li>每个拖动条只能绑定到一个轴，已绑定的拖动条会在列表中标记</li>
                     </ul>
                 </el-alert>
@@ -226,6 +239,15 @@
                             <el-radio-button label="horizontal">横向</el-radio-button>
                             <el-radio-button label="vertical">竖向</el-radio-button>
                         </el-radio-group>
+                    </el-form-item>
+                    
+                    <el-form-item label="值域模式">
+                        <el-radio-group v-model="editingButton.rangeMode">
+                            <el-radio-button label="unipolar">单极 (0 到 1)</el-radio-button>
+                            <el-radio-button label="bipolar">双极 (-1 到 1)</el-radio-button>
+                        </el-radio-group>
+                        <p class="key-hint">单极模式：居中时为 0.5，底部为 0，顶部为 1</p>
+                        <p class="key-hint">双极模式：居中时为 0，底部为 -1，顶部为 1</p>
                     </el-form-item>
                     
                     <el-form-item label="自动归中">
