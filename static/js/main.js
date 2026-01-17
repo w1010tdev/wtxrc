@@ -1,4 +1,8 @@
-const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+
+// Constants
+const MIN_BUTTON_SIZE = 50;
+const MAX_BUTTON_SIZE = 200;
 
 // Helper functions for showing messages
 const showMessage = {
@@ -98,7 +102,7 @@ const app = createApp({
                 mode.value = data.mode || 'custom_keys';
                 modifierKeys.value = data.modifier_keys || ['ctrl', 'shift', 'alt', 'cmd', 'win'];
                 specialKeys.value = data.special_keys || [];
-                renderCanvas();
+                markDirty();
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -136,11 +140,21 @@ const app = createApp({
             canvas.style.height = canvasHeight + 'px';
             
             ctx.scale(dpr, dpr);
-            renderCanvas();
+            needsRender = true;
+        };
+        
+        // Dirty flag for optimized rendering
+        let needsRender = true;
+        
+        const markDirty = () => {
+            needsRender = true;
         };
         
         const renderLoop = () => {
-            renderCanvas();
+            if (needsRender) {
+                renderCanvas();
+                needsRender = false;
+            }
             animationFrameId = requestAnimationFrame(renderLoop);
         };
         
@@ -266,7 +280,8 @@ const app = createApp({
             if (!btn) return;
             
             activeButtonsMap[btnId] = true;
-            socket.emit('button_down', { id: btn.id, label: btn.label, keys: btn.keys });
+            markDirty();
+            socket.emit('button_down', { id: btn.id, label: btn.label });
         };
         
         // Handle button release
@@ -274,6 +289,7 @@ const app = createApp({
             if (!activeButtonsMap[btnId]) return;
             
             delete activeButtonsMap[btnId];
+            markDirty();
             socket.emit('button_up', { id: btnId });
         };
         
@@ -338,9 +354,10 @@ const app = createApp({
                 } else if (dragState.mode === 'resize') {
                     const deltaX = x - dragState.startX;
                     const deltaY = y - dragState.startY;
-                    btn.width = Math.max(50, Math.min(300, dragState.startWidth + deltaX));
-                    btn.height = Math.max(50, Math.min(300, dragState.startHeight + deltaY));
+                    btn.width = Math.max(MIN_BUTTON_SIZE, Math.min(MAX_BUTTON_SIZE, dragState.startWidth + deltaX));
+                    btn.height = Math.max(MIN_BUTTON_SIZE, Math.min(MAX_BUTTON_SIZE, dragState.startHeight + deltaY));
                 }
+                markDirty();
             } else if (!isEditing.value) {
                 // Check if pointer moved to different button
                 const currentBtnId = pointerToButton.get(e.pointerId);
@@ -401,6 +418,7 @@ const app = createApp({
                 });
                 pointerToButton.clear();
             }
+            markDirty();
         };
         
         const saveLayout = () => {
@@ -507,6 +525,7 @@ const app = createApp({
                     buttonsData.value.push(buttonData);
                 }
                 
+                markDirty();
                 showEditDialog.value = false;
             } catch (error) {
                 console.error('Failed to save button:', error);
@@ -525,6 +544,7 @@ const app = createApp({
                 });
                 
                 buttonsData.value = buttonsData.value.filter(b => b.id !== editingButton.id);
+                markDirty();
                 showEditDialog.value = false;
             } catch (error) {
                 console.error('Failed to delete button:', error);
