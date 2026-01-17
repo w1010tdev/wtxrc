@@ -77,10 +77,12 @@ class OverlayApp:
                         text = msg.get('text', '')
                         print(f"[覆盖层] {text}")
                     elif cmd == 'GYRO':
-                        if self.joystick and self.gyro_processor:
-                            gamma = msg.get('gamma', 0)
-                            steering = self.gyro_processor.process(gamma)
-                            self.joystick.set_steering(steering)
+                        # 注意：此处的GYRO处理已经被app.py接管
+                        # 这里保留是为了向后兼容，但实际上不再使用
+                        # app.py会直接处理陀螺仪数据并应用到虚拟摇杆
+                        print(f"[覆盖层] 收到GYRO消息（已由主进程处理）")
+                    elif cmd == 'HIDE':
+                        print(f"[覆盖层] 隐藏")
                     elif cmd == 'quit':
                         if self.joystick:
                             self.joystick.close()
@@ -102,15 +104,10 @@ class OverlayApp:
             elif cmd == 'HIDE':
                 self.root.withdraw()
             elif cmd == 'GYRO':
-                # Process gyroscope data for driving mode
-                if self.joystick and self.gyro_processor:
-                    gamma = msg.get('gamma', 0)
-                    steering = self.gyro_processor.process(gamma)
-                    self.joystick.set_steering(steering)
-                    
-                    # Optionally show steering value
-                    # self.label.config(text=f"Steering: {steering:.2f}")
-                    # self.root.deiconify()
+                # 注意：此处的GYRO处理已经被app.py接管
+                # 这里保留是为了向后兼容，但实际上不再使用
+                # app.py会直接处理陀螺仪数据并应用到虚拟摇杆
+                pass
             elif cmd == 'quit':
                 if self.joystick:
                     self.joystick.close()

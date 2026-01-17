@@ -84,6 +84,59 @@ class VirtualJoystick:
             int_value = int((value + 1.0) * 16383.5)  # Map to 0-32767
             self.gamepad.emit(uinput.ABS_X, int_value, syn=True)
     
+    def set_axis(self, axis_name, value):
+        """
+        Set a specific gamepad axis value.
+        
+        Args:
+            axis_name: Axis name - "left_x", "left_y", "right_x", "right_y", "left_trigger", "right_trigger"
+            value: Float from -1.0 to 1.0 (for joysticks) or 0.0 to 1.0 (for triggers)
+        """
+        if not self.initialized:
+            return
+        
+        # Clamp value
+        if 'trigger' in axis_name:
+            value = max(0.0, min(1.0, value))
+        else:
+            value = max(-1.0, min(1.0, value))
+        
+        # print(f"[JOYSTICK] 设置轴 {axis_name} = {value:.3f}")  # 可选：取消注释以启用详细日志
+        
+        if self.system == 'Windows':
+            if axis_name == 'left_x':
+                current_y = getattr(self, '_left_y', 0.0)
+                self.gamepad.left_joystick_float(x_value_float=value, y_value_float=current_y)
+                self._left_x = value
+            elif axis_name == 'left_y':
+                current_x = getattr(self, '_left_x', 0.0)
+                self.gamepad.left_joystick_float(x_value_float=current_x, y_value_float=value)
+                self._left_y = value
+            elif axis_name == 'right_x':
+                current_y = getattr(self, '_right_y', 0.0)
+                self.gamepad.right_joystick_float(x_value_float=value, y_value_float=current_y)
+                self._right_x = value
+            elif axis_name == 'right_y':
+                current_x = getattr(self, '_right_x', 0.0)
+                self.gamepad.right_joystick_float(x_value_float=current_x, y_value_float=value)
+                self._right_y = value
+            elif axis_name == 'left_trigger':
+                self.gamepad.left_trigger_float(value_float=value)
+            elif axis_name == 'right_trigger':
+                self.gamepad.right_trigger_float(value_float=value)
+            self.gamepad.update()
+        elif self.system == 'Linux':
+            import uinput
+            axis_map = {
+                'left_x': uinput.ABS_X,
+                'left_y': uinput.ABS_Y,
+                'right_x': uinput.ABS_RX,
+                'right_y': uinput.ABS_RY,
+            }
+            if axis_name in axis_map:
+                int_value = int((value + 1.0) * 16383.5)  # Map -1.0~1.0 to 0-32767
+                self.gamepad.emit(axis_map[axis_name], int_value, syn=True)
+    
     def set_throttle(self, value):
         """
         Set the throttle value.

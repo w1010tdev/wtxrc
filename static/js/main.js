@@ -44,10 +44,25 @@ const app = createApp({
         const socket = io();
         const canvasRef = ref(null);
         const buttonsData = ref([]);
+        const slidersData = ref([]);  // 拖动条数据
         const isEditing = ref(false);
         const mode = ref('custom_keys');
         const modifierKeys = ref([]);
         const specialKeys = ref([]);
+        
+        // 驾驶模式配置
+        const drivingConfig = reactive({
+            gyro_sensitivity: 1.0,
+            gyro_deadzone: 2.0,
+            max_steering_angle: 45.0,
+            gyro_update_rate: 60,
+            gyro_axis_mapping: {
+                gamma: 'left_x',
+                beta: 'left_y',
+                alpha: null
+            },
+            sliders: []
+        });
         
         // Canvas state
         let ctx = null;
@@ -57,15 +72,21 @@ const app = createApp({
         
         // 编辑对话态
         const showEditDialog = ref(false);
+        const showDrivingConfigDialog = ref(false);  // 驾驶模式配置对话框
         const editingButton = reactive({
             id: '',
+            type: 'button',  // 'button' 或 'slider'
             label: '',
             keys: [],
             colorIndex: 0,
             width: 100,
             height: 100,
             x: 10,
-            y: 10
+            y: 10,
+            // 拖动条特有属性
+            orientation: 'horizontal',  // 'horizontal' 或 'vertical'
+            autoCenter: true,  // 是否自动归中
+            axis: 'right_x'  // 绑定的xbox轴
         });
         const selectedModifiers = ref([]); // 支持多个修饰键
         const selectedSpecialKey = ref('');
@@ -106,6 +127,13 @@ const app = createApp({
                 mode.value = data.mode || 'custom_keys';
                 modifierKeys.value = data.modifier_keys || ['ctrl', 'shift', 'alt', 'cmd', 'win'];
                 specialKeys.value = data.special_keys || [];
+                
+                // 加载驾驶模式配置
+                if (data.driving_config) {
+                    Object.assign(drivingConfig, data.driving_config);
+                    slidersData.value = drivingConfig.sliders || [];
+                }
+                
                 markDirty();
             } catch (error) {
                 console.error('加载配置失败：', error);
@@ -171,7 +199,11 @@ const app = createApp({
             
             // Draw each button
             buttonsData.value.forEach((btn, index) => {
-                drawButton(btn, index);
+                if (btn.type === 'slider') {
+                    drawSlider(btn, index);
+                } else {
+                    drawButton(btn, index);
+                }
             });
         };
         
@@ -245,6 +277,88 @@ const app = createApp({
             }
         };
         
+        const drawSlider = (slider, index) => {
+            const colorIndex = slider.colorIndex !== undefined ? slider.colorIndex : 0;
+            const color = BUTTON_COLORS[colorIndex % BUTTON_COLORS.length].color;
+            
+            // \u83b7\u53d6\u5f53\u524d\u503c\uff08-1.0 \u5230 1.0\uff09
+            const sliderValue = slider.currentValue !== undefined ? slider.currentValue : 0.0;
+            
+            // \u7ed8\u5236\u80cc\u666f\u8f68\u9053
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.strokeStyle = isEditing.value ? '#409eff' : 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = isEditing.value ? 2 : 1;
+            
+            const radius = 8;
+            ctx.beginPath();
+            ctx.moveTo(slider.x + radius, slider.y);
+            ctx.lineTo(slider.x + slider.width - radius, slider.y);
+            ctx.quadraticCurveTo(slider.x + slider.width, slider.y, slider.x + slider.width, slider.y + radius);
+            ctx.lineTo(slider.x + slider.width, slider.y + slider.height - radius);
+            ctx.quadraticCurveTo(slider.x + slider.width, slider.y + slider.height, slider.x + slider.width - radius, slider.y + slider.height);
+            ctx.lineTo(slider.x + radius, slider.y + slider.height);
+            ctx.quadraticCurveTo(slider.x, slider.y + slider.height, slider.x, slider.y + slider.height - radius);
+            ctx.lineTo(slider.x, slider.y + radius);
+            ctx.quadraticCurveTo(slider.x, slider.y, slider.x + radius, slider.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            if (isEditing.value) {
+                ctx.setLineDash([5, 3]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // \u7ed8\u5236\u6ed1\u5757
+            const knobSize = slider.orientation === 'horizontal' ? slider.height * 0.8 : slider.width * 0.8;
+            let knobX, knobY;
+            
+            if (slider.orientation === 'horizontal') {
+                // \u6a2a\u5411\u62d6\u52a8\u6761
+                const centerY = slider.y + slider.height / 2;
+                const rangeX = slider.width - knobSize;
+                knobX = slider.x + knobSize / 2 + (sliderValue + 1.0) / 2.0 * rangeX;
+                knobY = centerY;
+                
+                // \u7ed8\u5236\u6ed1\u5757
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(knobX, knobY, knobSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // \u7ad6\u5411\u62d6\u52a8\u6761
+                const centerX = slider.x + slider.width / 2;
+                const rangeY = slider.height - knobSize;
+                knobX = centerX;
+                knobY = slider.y + knobSize / 2 + (1.0 - sliderValue) / 2.0 * rangeY;  // \u7ad6\u5411\u65f6\u4e0a\u4e3a\u6b63
+                
+                // \u7ed8\u5236\u6ed1\u5757
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(knobX, knobY, knobSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // \u7ed8\u5236\u6807\u7b7e
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.font = '600 12px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(slider.label, slider.x + slider.width / 2, slider.y + 4);
+            
+            // \u5728\u7f16\u8f91\u6a21\u5f0f\u4e0b\u7ed8\u5236\u7f29\u653e\u628a\u624b
+            if (isEditing.value) {
+                const handleSize = 12;
+                ctx.fillStyle = '#409eff';
+                ctx.fillRect(
+                    slider.x + slider.width - handleSize,
+                    slider.y + slider.height - handleSize,
+                    handleSize,
+                    handleSize
+                );
+            }
+        };
+        
         // Find button at a given point (canvas coordinates)
         const getButtonAtPoint = (canvasX, canvasY) => {
             // Check buttons in reverse order (top-most first)
@@ -282,6 +396,12 @@ const app = createApp({
         const handleButtonPress = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
+            
+            if (btn.type === 'slider') {
+                // \u62d6\u52a8\u6761\u4e0d\u9700\u8981\u6309\u4e0b\u6548\u679c
+                return;
+            }
+            
             console.log(`按钮 ${btn.label} 按下`);
             socket.emit('button_down', { id: btn.id, label: btn.label });
             activeButtonsMap[btnId] = true;
@@ -302,8 +422,43 @@ const app = createApp({
         const executeButtonAction = (btnId) => {
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
+            
+            if (btn.type === 'slider') {
+                // \u62d6\u52a8\u6761\u91ca\u653e\u540e\u5982\u679c\u8bbe\u7f6e\u4e86\u81ea\u52a8\u5f52\u4e2d\uff0c\u5219\u91cd\u7f6e\u503c
+                if (btn.autoCenter) {
+                    btn.currentValue = 0.0;
+                    socket.emit('slider_value', { id: btn.id, value: 0.0 });
+                    markDirty();
+                }
+                return;
+            }
+            
             console.log(`按钮 ${btn.label} 抬起`);
             socket.emit('button_up', { id: btn.id });
+        };
+        
+        // \u5904\u7406\u62d6\u52a8\u6761\u503c\u66f4\u65b0
+        const handleSliderMove = (slider, canvasX, canvasY) => {
+            const knobSize = slider.orientation === 'horizontal' ? slider.height * 0.8 : slider.width * 0.8;
+            let value;
+            
+            if (slider.orientation === 'horizontal') {
+                const rangeX = slider.width - knobSize;
+                const relativeX = canvasX - slider.x - knobSize / 2;
+                value = (relativeX / rangeX) * 2.0 - 1.0;
+            } else {
+                const rangeY = slider.height - knobSize;
+                const relativeY = canvasY - slider.y - knobSize / 2;
+                value = 1.0 - (relativeY / rangeY) * 2.0;  // \u7ad6\u5411\u65f6\u4e0a\u4e3a\u6b63
+            }
+            
+            // \u9650\u5236\u503c\u5728 -1.0 \u5230 1.0 \u4e4b\u95f4
+            value = Math.max(-1.0, Math.min(1.0, value));
+            slider.currentValue = value;
+            
+            // \u53d1\u9001\u5230\u540e\u7aef
+            socket.emit('slider_value', { id: slider.id, value: value });
+            markDirty();
         };
         
         // Canvas event handlers
@@ -351,7 +506,13 @@ const app = createApp({
                 // This allows for slide-in detection in pointermove
                 if (hit) {
                     pointerToButton.set(e.pointerId, hit.button.id);
-                    handleButtonPress(hit.button.id);
+                    
+                    // \u5982\u679c\u662f\u62d6\u52a8\u6761\uff0c\u7acb\u5373\u5904\u7406\u503c\u66f4\u65b0
+                    if (hit.button.type === 'slider') {
+                        handleSliderMove(hit.button, x, y);
+                    } else {
+                        handleButtonPress(hit.button.id);
+                    }
                 } else {
                     // Track pointer with no button initially
                     pointerToButton.set(e.pointerId, null);
@@ -385,7 +546,10 @@ const app = createApp({
                 const hit = getButtonAtPoint(x, y);
                 const newBtnId = hit ? hit.button.id : null;
                 
-                if (newBtnId !== currentBtnId) {
+                // \u5982\u679c\u5f53\u524d\u6309\u94ae\u662f\u62d6\u52a8\u6761\uff0c\u5904\u7406\u62d6\u52a8
+                if (currentBtnId && hit && hit.button.id === currentBtnId && hit.button.type === 'slider') {
+                    handleSliderMove(hit.button, x, y);
+                } else if (newBtnId !== currentBtnId) {
                     // Release old button
                     if (currentBtnId) {
                         handleButtonRelease(currentBtnId);
@@ -393,7 +557,12 @@ const app = createApp({
                     // Press new button or update to null
                     pointerToButton.set(e.pointerId, newBtnId);
                     if (newBtnId) {
-                        handleButtonPress(newBtnId);
+                        const newBtn = buttonsData.value.find(b => b.id === newBtnId);
+                        if (newBtn && newBtn.type === 'slider') {
+                            handleSliderMove(newBtn, x, y);
+                        } else {
+                            handleButtonPress(newBtnId);
+                        }
                     }
                 }
             }
@@ -450,13 +619,17 @@ const app = createApp({
             
             Object.assign(editingButton, {
                 id: btn.id,
+                type: btn.type || 'button',
                 label: btn.label,
                 keys: [...(btn.keys || [])],
                 colorIndex: btn.colorIndex !== undefined ? btn.colorIndex : 0,
                 width: btn.width || 100,
                 height: btn.height || 100,
                 x: btn.x,
-                y: btn.y
+                y: btn.y,
+                orientation: btn.orientation || 'horizontal',
+                autoCenter: btn.autoCenter !== undefined ? btn.autoCenter : true,
+                axis: btn.axis || 'right_x'
             });
             showEditDialog.value = true;
         };
@@ -464,13 +637,36 @@ const app = createApp({
         const addNewButton = () => {
             Object.assign(editingButton, {
                 id: '',
+                type: 'button',
                 label: 'New',
                 keys: [],
                 colorIndex: 0,
                 width: 80,
                 height: 80,
                 x: 50,
-                y: 50
+                y: 50,
+                orientation: 'horizontal',
+                autoCenter: true,
+                axis: 'right_x'
+            });
+            showEditDialog.value = true;
+        };
+        
+        const addNewSlider = () => {
+            Object.assign(editingButton, {
+                id: '',
+                type: 'slider',
+                label: 'Slider',
+                keys: [],
+                colorIndex: 0,
+                width: 200,  // 横向拖动条默认宽度
+                height: 60,  // 横向拖动条默认高度
+                x: 50,
+                y: 50,
+                orientation: 'horizontal',
+                autoCenter: true,
+                axis: 'right_x',
+                currentValue: 0.0
             });
             showEditDialog.value = true;
         };
@@ -510,6 +706,7 @@ const app = createApp({
         const saveButtonEdit = async () => {
             const buttonData = {
                 id: editingButton.id,
+                type: editingButton.type,
                 label: editingButton.label,
                 keys: editingButton.keys,
                 colorIndex: editingButton.colorIndex,
@@ -518,6 +715,14 @@ const app = createApp({
                 x: editingButton.x,
                 y: editingButton.y
             };
+            
+            // \u5982\u679c\u662f\u62d6\u52a8\u6761\uff0c\u6dfb\u52a0\u62d6\u52a8\u6761\u7279\u6709\u5c5e\u6027
+            if (editingButton.type === 'slider') {
+                buttonData.orientation = editingButton.orientation;
+                buttonData.autoCenter = editingButton.autoCenter;
+                buttonData.axis = editingButton.axis;
+                buttonData.currentValue = editingButton.currentValue || 0.0;
+            }
             
             try {
                 if (editingButton.id) {
@@ -545,12 +750,75 @@ const app = createApp({
                     buttonsData.value.push(buttonData);
                 }
                 
+                // \u5982\u679c\u662f\u9a7e\u9a76\u6a21\u5f0f\u4e14\u662f\u62d6\u52a8\u6761\uff0c\u66f4\u65b0\u9a7e\u9a76\u914d\u7f6e
+                if (mode.value === 'driving' && editingButton.type === 'slider') {
+                    await saveDrivingConfig();
+                }
+                
                 markDirty();
                 showEditDialog.value = false;
             } catch (error) {
                 console.error('保存按钮失败：', error);
                 showMessage.error('保存按钮失败');
             }
+        };
+        
+        const saveDrivingConfig = async () => {
+            try {
+                // \u4ece buttonsData \u4e2d\u63d0\u53d6\u6240\u6709\u62d6\u52a8\u6761
+                const sliders = buttonsData.value
+                    .filter(b => b.type === 'slider')
+                    .map(s => ({
+                        id: s.id,
+                        label: s.label,
+                        axis: s.axis,
+                        orientation: s.orientation,
+                        autoCenter: s.autoCenter
+                    }));
+                
+                drivingConfig.sliders = sliders;
+                
+                await fetch('/api/update_driving_config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ driving_config: drivingConfig })
+                });
+                
+                showMessage.success('驾驶配置已保存，请重启服务器以应用更改');
+            } catch (error) {
+                console.error('保存驾驶配置失败：', error);
+                showMessage.error('保存驾驶配置失败');
+            }
+        };
+        
+        const openDrivingConfig = () => {
+            showDrivingConfigDialog.value = true;
+        };
+        
+        // 拖动条方向变化时自动调整大小
+        const onSliderOrientationChange = (newOrientation) => {
+            if (newOrientation === 'horizontal') {
+                // 横向：宽 > 高
+                if (editingButton.width < editingButton.height) {
+                    const temp = editingButton.width;
+                    editingButton.width = editingButton.height;
+                    editingButton.height = temp;
+                }
+                // 确保至少是推荐尺寸
+                if (editingButton.width < 150) editingButton.width = 200;
+                if (editingButton.height > 80) editingButton.height = 60;
+            } else {
+                // 竖向：高 > 宽
+                if (editingButton.height < editingButton.width) {
+                    const temp = editingButton.width;
+                    editingButton.width = editingButton.height;
+                    editingButton.height = temp;
+                }
+                // 确保至少是推荐尺寸
+                if (editingButton.height < 150) editingButton.height = 200;
+                if (editingButton.width > 80) editingButton.width = 60;
+            }
+            markDirty();
         };
         
         const deleteButton = async () => {
@@ -660,11 +928,13 @@ const app = createApp({
         return {
             canvasRef,
             buttonsData,
+            slidersData,
             isEditing,
             mode,
             modifierKeys,
             specialKeys,
             showEditDialog,
+            showDrivingConfigDialog,
             editingButton,
             selectedModifiers,
             selectedSpecialKey,
@@ -673,6 +943,7 @@ const app = createApp({
             hasExistingMainDevice,
             isMainDevice,
             gyroData,
+            drivingConfig,
             dialogWidth,
             activeButtonsMap,
             BUTTON_COLORS,
@@ -680,9 +951,13 @@ const app = createApp({
             saveLayout,
             editButton,
             addNewButton,
+            addNewSlider,
             addKey,
             removeKey,
             saveButtonEdit,
+            saveDrivingConfig,
+            openDrivingConfig,
+            onSliderOrientationChange,
             deleteButton,
             setAsMainDevice
         };

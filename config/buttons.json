@@ -7,7 +7,7 @@
             "keys": [
                 "space"
             ],
-            "label": "跳跃",
+            "label": "\u8df3\u8dc3",
             "width": 100,
             "x": 10,
             "y": 10
@@ -19,7 +19,7 @@
             "keys": [
                 "ctrl"
             ],
-            "label": "下蹲",
+            "label": "\u4e0b\u8e72",
             "width": 100,
             "x": 398,
             "y": 138
@@ -32,7 +32,7 @@
                 "a",
                 "b"
             ],
-            "label": "连招A",
+            "label": "\u8fde\u62dbA",
             "width": 100,
             "x": 382,
             "y": 5
@@ -44,10 +44,67 @@
             "keys": [
                 "esc"
             ],
-            "label": "菜单",
+            "label": "\u83dc\u5355",
             "width": 100,
             "x": 172,
             "y": 100
+        },
+        {
+            "id": "btn6",
+            "type": "slider",
+            "label": "Slider",
+            "keys": [],
+            "colorIndex": 0,
+            "width": 200,
+            "height": 60,
+            "x": 593.2000122070312,
+            "y": 140.39999389648438,
+            "orientation": "horizontal",
+            "autoCenter": true,
+            "axis": "right_x",
+            "currentValue": 0
+        },
+        {
+            "id": "btn12",
+            "type": "slider",
+            "label": "Slider",
+            "keys": [],
+            "colorIndex": 0,
+            "width": 60,
+            "height": 200,
+            "x": 284.40000915527344,
+            "y": 81.99996948242188,
+            "orientation": "vertical",
+            "autoCenter": true,
+            "axis": "left_trigger",
+            "currentValue": 0
         }
-    ]
+    ],
+    "driving_config": {
+        "gyro_sensitivity": 1,
+        "gyro_deadzone": 2,
+        "max_steering_angle": 45,
+        "gyro_update_rate": 60,
+        "gyro_axis_mapping": {
+            "alpha": null,
+            "beta": "left_y",
+            "gamma": "left_x"
+        },
+        "sliders": [
+            {
+                "id": "btn6",
+                "label": "Slider",
+                "axis": "right_x",
+                "orientation": "horizontal",
+                "autoCenter": true
+            },
+            {
+                "id": "btn12",
+                "label": "Slider",
+                "axis": "left_trigger",
+                "orientation": "vertical",
+                "autoCenter": true
+            }
+        ]
+    }
 }

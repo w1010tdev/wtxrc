@@ -23,6 +23,14 @@
             </div>
             <div class="actions">
                 <el-button 
+                    v-if="mode === 'driving' && !isEditing"
+                    type="info"
+                    size="small"
+                    @click="openDrivingConfig"
+                >
+                    ⚙️ 驾驶配置
+                </el-button>
+                <el-button 
                     :type="isEditing ? 'warning' : 'primary'"
                     size="small"
                     @click="toggleEditMode"
@@ -36,7 +44,15 @@
                     size="small"
                     @click="addNewButton"
                 >
-                    + 添加
+                    + 添加按钮
+                </el-button>
+                <el-button 
+                    v-if="isEditing && mode === 'driving'"
+                    type="success"
+                    size="small"
+                    @click="addNewSlider"
+                >
+                    + 添加拖动条
                 </el-button>
                 <el-button 
                     v-show="isEditing"
@@ -66,19 +82,107 @@
             </template>
         </el-dialog>
 
+        <!-- 驾驶模式配置对话框 -->
+        <el-dialog
+            v-model="showDrivingConfigDialog"
+            title="驾驶模式配置"
+            :width="dialogWidth"
+            :close-on-click-modal="false"
+        >
+            <el-form :model="drivingConfig" label-position="top">
+                <el-divider content-position="left">陀螺仪轴映射</el-divider>
+                <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
+                    配置陀螺仪的每个轴如何映射到 Xbox 手柄轴
+                </p>
+                
+                <el-form-item label="Gamma（左右倾斜）映射到">
+                    <el-select v-model="drivingConfig.gyro_axis_mapping.gamma" placeholder="选择手柄轴" clearable>
+                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
+                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
+                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
+                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
+                        <el-option label="左扳机" value="left_trigger"></el-option>
+                        <el-option label="右扳机" value="right_trigger"></el-option>
+                    </el-select>
+                </el-form-item>
+                
+                <el-form-item label="Beta（前后倾斜）映射到">
+                    <el-select v-model="drivingConfig.gyro_axis_mapping.beta" placeholder="选择手柄轴" clearable>
+                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
+                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
+                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
+                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
+                        <el-option label="左扳机" value="left_trigger"></el-option>
+                        <el-option label="右扳机" value="right_trigger"></el-option>
+                    </el-select>
+                </el-form-item>
+                
+                <el-form-item label="Alpha（Z轴旋转）映射到">
+                    <el-select v-model="drivingConfig.gyro_axis_mapping.alpha" placeholder="选择手柄轴" clearable>
+                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
+                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
+                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
+                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
+                        <el-option label="左扳机" value="left_trigger"></el-option>
+                        <el-option label="右扳机" value="right_trigger"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <el-button size="default" @click="showDrivingConfigDialog = false">取消</el-button>
+                    <el-button type="primary" size="default" @click="saveDrivingConfig(); showDrivingConfigDialog = false;">保存</el-button>
+                </div>
+            </template>
+        </el-dialog>
+        
         <!-- 按钮编辑对话 -->
         <el-dialog
             v-model="showEditDialog"
-            title="按钮配置"
+            :title="editingButton.type === 'slider' ? '拖动条配置' : '按钮配置'"
             :width="dialogWidth"
             :close-on-click-modal="false"
         >
             <el-form :model="editingButton" label-position="top">
-                <el-form-item label="按钮标签">
-                    <el-input v-model="editingButton.label" placeholder="输入按钮名称"></el-input>
+                <el-form-item label="控件类型" v-if="!editingButton.id">
+                    <el-radio-group v-model="editingButton.type">
+                        <el-radio-button label="button">按钮</el-radio-button>
+                        <el-radio-button label="slider" v-if="mode === 'driving'">拖动条</el-radio-button>
+                    </el-radio-group>
                 </el-form-item>
                 
-                <el-form-item label="按键绑定">
+                <el-form-item :label="editingButton.type === 'slider' ? '拖动条标签' : '按钮标签'">
+                    <el-input v-model="editingButton.label" placeholder="输入名称"></el-input>
+                </el-form-item>
+                
+                <!-- 拖动条特有配置 -->
+                <template v-if="editingButton.type === 'slider'">
+                    <el-form-item label="方向">
+                        <el-radio-group v-model="editingButton.orientation" @change="onSliderOrientationChange">
+                            <el-radio-button label="horizontal">横向</el-radio-button>
+                            <el-radio-button label="vertical">竖向</el-radio-button>
+                        </el-radio-group>
+                    </el-form-item>
+                    
+                    <el-form-item label="绑定到 Xbox 轴">
+                        <el-select v-model="editingButton.axis" placeholder="选择手柄轴">
+                            <el-option label="左摇杆 X 轴" value="left_x"></el-option>
+                            <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
+                            <el-option label="右摇杆 X 轴" value="right_x"></el-option>
+                            <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
+                            <el-option label="左扳机" value="left_trigger"></el-option>
+                            <el-option label="右扳机" value="right_trigger"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    
+                    <el-form-item label="自动归中">
+                        <el-switch v-model="editingButton.autoCenter"></el-switch>
+                        <p class="key-hint">释放拖动条后是否自动回到中间位置</p>
+                    </el-form-item>
+                </template>
+                
+                <!-- 按钮特有配置 -->
+                <el-form-item label="按键绑定" v-if="editingButton.type !== 'slider'">
                     <div class="key-tags">
                         <el-tag
                             v-for="(key, index) in editingButton.keys"

@@ -5,7 +5,7 @@
 # 模式选择
 # - "custom_keys": 自定义按键布局（默认）
 # - "driving": 驾驶模拟模式，支持陀螺仪
-MODE = "custom_keys"
+MODE = "driving"
 
 # 服务器配置
 SERVER_HOST = "0.0.0.0"
@@ -21,6 +21,16 @@ DRIVING_CONFIG = {
     "max_steering_angle": 45.0,
     # 陀螺仪数据更新频率（Hz）
     "gyro_update_rate": 60,
+    # 陀螺仪轴映射到 Xbox 手柄轴
+    # 可选的轴: "left_x", "left_y", "right_x", "right_y", "left_trigger", "right_trigger"
+    # 可选的陀螺仪轴: "alpha" (Z轴旋转), "beta" (X轴前后倾斜), "gamma" (Y轴左右倾斜)
+    "gyro_axis_mapping": {
+        "gamma": "left_x",  # 左右倾斜映射到左摇杆X轴（转向）
+        "beta": "left_y",   # 前后倾斜映射到左摇杆Y轴（油门/刹车）
+        "alpha": None       # Z轴旋转不映射
+    },
+    # 拖动条配置列表（在前端配置后保存）
+    "sliders": []
 }
 
 # 虚拟摇杆设置（驾驶模式）
