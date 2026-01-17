@@ -61,7 +61,6 @@
             "y": 140.39999389648438,
             "orientation": "horizontal",
             "autoCenter": true,
-            "axis": "right_x",
             "currentValue": 0
         },
         {
@@ -76,7 +75,6 @@
             "y": 81.99996948242188,
             "orientation": "vertical",
             "autoCenter": true,
-            "axis": "left_trigger",
             "currentValue": 0
         }
     ],

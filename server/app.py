@@ -171,7 +171,7 @@ def handle_gyro_data(data):
     if config.DEBUG:
         print(f"[GYRO] 收到陀螺仪数据: alpha={alpha:.2f}, beta={beta:.2f}, gamma={gamma:.2f}")
     
-    # 发送到 overlay 进程用于显示（可选）
+    # 发送到 overlay 进程用于显示（overlay 进程会显示陀螺仪数值，但不处理轴映射）
     overlay_queue.put({
         'cmd': 'GYRO',
         'alpha': alpha,
@@ -310,6 +310,9 @@ def normalize_gyro_value(gyro_value, gyro_axis):
 def apply_deadzone(value, deadzone):
     """应用死区到输入值"""
     if abs(value) < deadzone:
+        return 0.0
+    # 防止除以零
+    if deadzone >= 1.0:
         return 0.0
     # 移除死区后重新映射到完整范围
     if value > 0:

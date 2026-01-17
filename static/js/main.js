@@ -213,7 +213,7 @@ const app = createApp({
                 drivingConfig.axis_config[axis] = {
                     source_type: 'none',
                     source_id: null,
-                    default_value: axis.includes('trigger') ? 0 : 0,
+                    default_value: 0,
                     peak_value: 1.0,
                     deadzone: 0.05
                 };
