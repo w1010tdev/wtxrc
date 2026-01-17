@@ -2,3 +2,7 @@ flask
 flask-socketio
 pynput
 eventlet
+
+# Optional: For virtual joystick in driving mode
+# Windows: pip install vgamepad (also requires ViGEmBus driver)
+# Linux: pip install python-uinput

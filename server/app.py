@@ -2,9 +2,14 @@ from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 import json
 import os
+import sys
 import multiprocessing
 from overlay import run_overlay
 import input_manager
+
+# Add config to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from config import config
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.config['SECRET_KEY'] = 'secret!'
@@ -13,6 +18,10 @@ socketio = SocketIO(app)
 # IPC Queue for Overlay
 overlay_queue = multiprocessing.Queue()
 overlay_process = None
+
+# Store connected devices and their roles
+connected_devices = {}
+main_device_sid = None
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../config/buttons.json')
 
@@ -34,7 +43,123 @@ def index():
 
 @app.route('/api/config')
 def get_config():
-    return jsonify(load_config())
+    button_config = load_config()
+    # Add mode and other settings from config.py
+    button_config['mode'] = config.MODE
+    button_config['modifier_keys'] = config.MODIFIER_KEYS
+    button_config['special_keys'] = config.SPECIAL_KEYS
+    if config.MODE == 'driving':
+        button_config['driving_config'] = config.DRIVING_CONFIG
+    return jsonify(button_config)
+
+@app.route('/api/update_button', methods=['POST'])
+def update_button():
+    """Update a single button's configuration"""
+    data = request.json
+    btn_id = data.get('id')
+    current_config = load_config()
+    
+    for i, btn in enumerate(current_config['buttons']):
+        if btn['id'] == btn_id:
+            # Update the button with new data
+            current_config['buttons'][i].update(data)
+            break
+    else:
+        # Button not found, add it
+        current_config['buttons'].append(data)
+    
+    save_config(current_config)
+    return jsonify({'status': 'success'})
+
+@app.route('/api/add_button', methods=['POST'])
+def add_button():
+    """Add a new button"""
+    data = request.json
+    current_config = load_config()
+    
+    # Generate unique ID
+    existing_ids = [btn['id'] for btn in current_config['buttons']]
+    new_id = f"btn{len(existing_ids) + 1}"
+    while new_id in existing_ids:
+        new_id = f"btn{len(existing_ids) + int(new_id[-1]) + 1}"
+    
+    data['id'] = new_id
+    current_config['buttons'].append(data)
+    save_config(current_config)
+    return jsonify({'status': 'success', 'id': new_id})
+
+@app.route('/api/delete_button', methods=['POST'])
+def delete_button():
+    """Delete a button"""
+    data = request.json
+    btn_id = data.get('id')
+    current_config = load_config()
+    
+    current_config['buttons'] = [btn for btn in current_config['buttons'] if btn['id'] != btn_id]
+    save_config(current_config)
+    return jsonify({'status': 'success'})
+
+@socketio.on('connect')
+def handle_connect():
+    global connected_devices
+    sid = request.sid
+    connected_devices[sid] = {'role': None, 'is_main': False}
+    
+    # In driving mode, ask if this should be the main device
+    if config.MODE == 'driving':
+        emit('ask_main_device', {'current_main': main_device_sid is not None})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    global connected_devices, main_device_sid
+    sid = request.sid
+    if sid in connected_devices:
+        if connected_devices[sid].get('is_main'):
+            main_device_sid = None
+        del connected_devices[sid]
+
+@socketio.on('set_main_device')
+def handle_set_main_device(data):
+    global main_device_sid, connected_devices
+    sid = request.sid
+    is_main = data.get('is_main', False)
+    
+    if is_main:
+        # Remove main status from previous main device
+        if main_device_sid and main_device_sid in connected_devices:
+            connected_devices[main_device_sid]['is_main'] = False
+            socketio.emit('main_status_changed', {'is_main': False}, to=main_device_sid)
+        
+        main_device_sid = sid
+        connected_devices[sid]['is_main'] = True
+        emit('main_status_changed', {'is_main': True})
+    else:
+        if main_device_sid == sid:
+            main_device_sid = None
+        connected_devices[sid]['is_main'] = False
+        emit('main_status_changed', {'is_main': False})
+
+@socketio.on('gyro_data')
+def handle_gyro_data(data):
+    """Handle gyroscope data from main device in driving mode"""
+    global main_device_sid
+    sid = request.sid
+    
+    # Only accept gyro data from main device
+    if sid != main_device_sid:
+        return
+    
+    alpha = data.get('alpha', 0)  # Z-axis rotation
+    beta = data.get('beta', 0)    # X-axis rotation (front-back tilt)
+    gamma = data.get('gamma', 0)  # Y-axis rotation (left-right tilt)
+    
+    # Broadcast to joystick handler (could be used for virtual joystick)
+    overlay_queue.put({
+        'cmd': 'GYRO',
+        'alpha': alpha,
+        'beta': beta,
+        'gamma': gamma
+    })
 
 @socketio.on('button_down')
 def handle_button_down(data):
@@ -52,8 +177,8 @@ def handle_button_up(data):
     overlay_queue.put({'cmd': 'HIDE'})
     
     # Execute keys
-    config = load_config()
-    btn = next((b for b in config['buttons'] if b['id'] == btn_id), None)
+    button_config = load_config()
+    btn = next((b for b in button_config['buttons'] if b['id'] == btn_id), None)
     if btn:
         input_manager.execute_combination(btn.get('keys', []))
 

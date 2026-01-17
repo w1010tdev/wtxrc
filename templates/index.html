@@ -4,33 +4,190 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>W-Touch Remote 2077</title>
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Element Plus -->
+    <script src="https://unpkg.com/element-plus"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <!-- Fallback or prefer local -->
-    <!-- <script src="/socket.io/socket.io.js"></script> -->
 </head>
 <body>
     <div class="bg-grid"></div>
     <div class="scanline"></div>
+    {% raw %}
     <div id="app">
         <div id="controls-bar">
             <span class="brand">W-TOUCH <span class="version">RC</span></span>
+            <div class="mode-badge" v-if="mode === 'driving'">
+                <el-tag type="warning">🎮 Driving Mode</el-tag>
+            </div>
             <div class="actions">
-                <button id="toggle-edit-btn" onclick="toggleEditMode()">
-                    <span class="icon">⚙️</span> EDIT
-                </button>
-                <button id="save-btn" onclick="saveLayout()" style="display:none;">
-                    <span class="icon">💾</span> SAVE
-                </button>
+                <el-button 
+                    type="primary"
+                    :class="{ editing: isEditing }"
+                    @click="toggleEditMode"
+                >
+                    <span v-if="!isEditing">⚙️ EDIT</span>
+                    <span v-else>✓ EXIT EDIT</span>
+                </el-button>
+                <el-button 
+                    v-if="isEditing"
+                    type="success" 
+                    @click="addNewButton"
+                >
+                    ➕ ADD
+                </el-button>
+                <el-button 
+                    v-show="isEditing" 
+                    type="warning" 
+                    @click="saveLayout"
+                >
+                    💾 SAVE
+                </el-button>
             </div>
         </div>
-        <div id="game-pad">
-            <!-- Buttons will be injected here -->
+        
+        <!-- Main Device Dialog (Driving Mode) -->
+        <el-dialog
+            v-model="showMainDeviceDialog"
+            title="Set as Main Device?"
+            width="90%"
+            :close-on-click-modal="false"
+        >
+            <p>In driving mode, the main device will send gyroscope data to control steering.</p>
+            <p v-if="hasExistingMainDevice">Note: Another device is currently set as main.</p>
+            <template #footer>
+                <el-button @click="setAsMainDevice(false)">No, Regular Controller</el-button>
+                <el-button type="primary" @click="setAsMainDevice(true)">Yes, Set as Main</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- Button Edit Dialog -->
+        <el-dialog
+            v-model="showEditDialog"
+            title="Configure Button"
+            width="90%"
+            :close-on-click-modal="false"
+        >
+            <el-form :model="editingButton" label-width="100px">
+                <el-form-item label="Label">
+                    <el-input v-model="editingButton.label" placeholder="Button Name"></el-input>
+                </el-form-item>
+                <el-form-item label="Keys">
+                    <div class="key-tags">
+                        <el-tag
+                            v-for="(key, index) in editingButton.keys"
+                            :key="index"
+                            closable
+                            @close="removeKey(index)"
+                            class="key-tag"
+                        >
+                            {{ key }}
+                        </el-tag>
+                    </div>
+                    <div class="key-input-group">
+                        <el-select 
+                            v-model="selectedModifier" 
+                            placeholder="Modifier (optional)"
+                            clearable
+                            style="width: 140px"
+                        >
+                            <el-option 
+                                v-for="mod in modifierKeys" 
+                                :key="mod" 
+                                :label="mod.toUpperCase()" 
+                                :value="mod"
+                            ></el-option>
+                        </el-select>
+                        <el-select 
+                            v-model="selectedSpecialKey" 
+                            placeholder="Special Key"
+                            clearable
+                            filterable
+                            style="width: 140px; margin-left: 8px"
+                        >
+                            <el-option 
+                                v-for="key in specialKeys" 
+                                :key="key" 
+                                :label="key.toUpperCase()" 
+                                :value="key"
+                            ></el-option>
+                        </el-select>
+                        <el-input 
+                            v-model="customKeyInput" 
+                            placeholder="Or type a key"
+                            style="width: 100px; margin-left: 8px"
+                            @keyup.enter="addKey"
+                        ></el-input>
+                        <el-button type="primary" @click="addKey" style="margin-left: 8px">Add</el-button>
+                    </div>
+                    <p class="key-hint">Examples: ctrl+alt+del, shift+a, space</p>
+                </el-form-item>
+                <el-form-item label="Color">
+                    <el-color-picker v-model="editingButton.color"></el-color-picker>
+                </el-form-item>
+                <el-form-item label="Size">
+                    <el-slider 
+                        v-model="editingButton.width" 
+                        :min="50" 
+                        :max="300" 
+                        :step="10"
+                        show-input
+                    ></el-slider>
+                    <el-slider 
+                        v-model="editingButton.height" 
+                        :min="50" 
+                        :max="300" 
+                        :step="10"
+                        show-input
+                    ></el-slider>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button type="danger" @click="deleteButton" v-if="editingButton.id">Delete</el-button>
+                <el-button @click="showEditDialog = false">Cancel</el-button>
+                <el-button type="primary" @click="saveButtonEdit">Save</el-button>
+            </template>
+        </el-dialog>
+        
+        <!-- Game Pad Area -->
+        <div id="game-pad" ref="gamePad">
+            <div
+                v-for="(btn, index) in buttonsData"
+                :key="btn.id"
+                class="game-btn"
+                :class="{ editing: isEditing, active: activeButtons.has(btn.id) }"
+                :style="{
+                    backgroundColor: btn.color || '#555',
+                    left: btn.x + 'px',
+                    top: btn.y + 'px',
+                    width: btn.width + 'px',
+                    height: btn.height + 'px'
+                }"
+                :data-id="btn.id"
+                :data-index="index"
+                @dblclick="editButton(btn)"
+            >
+                {{ btn.label }}
+            </div>
+        </div>
+        
+        <!-- Gyroscope Status (Driving Mode) -->
+        <div v-if="mode === 'driving' && isMainDevice" class="gyro-status">
+            <el-tag type="success">🎮 Main Device - Gyro Active</el-tag>
+            <div class="gyro-values">
+                α: {{ gyroData.alpha.toFixed(1) }}° 
+                β: {{ gyroData.beta.toFixed(1) }}° 
+                γ: {{ gyroData.gamma.toFixed(1) }}°
+            </div>
         </div>
     </div>
+    {% endraw %}
 
     <script src="/static/js/main.js"></script>
 </body>
