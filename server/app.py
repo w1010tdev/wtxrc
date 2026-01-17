@@ -172,8 +172,6 @@ def handle_gyro_data(data):
         print(f"[GYRO] 收到陀螺仪数据: alpha={alpha:.2f}, beta={beta:.2f}, gamma={gamma:.2f}")
     
     # 发送到 overlay 进程用于显示（可选）
-    # 注意: overlay 中也有陀螺仪处理，但那是为了兼容旧的驾驶模式
-    # 现在我们在这里统一处理，不再依赖 overlay 的陀螺仪处理
     overlay_queue.put({
         'cmd': 'GYRO',
         'alpha': alpha,
@@ -184,20 +182,37 @@ def handle_gyro_data(data):
     # 应用陀螺仪数据到虚拟手柄（如果已初始化）
     if virtual_joystick and virtual_joystick.initialized:
         button_config = load_config()
-        gyro_mapping = button_config.get('driving_config', {}).get('gyro_axis_mapping', {})
+        axis_config = button_config.get('driving_config', {}).get('axis_config', {})
         
-        if not gyro_mapping:
-            # 如果没有自定义映射，使用默认配置
-            gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
-        
-        # 映射陀螺仪数据到手柄轴
-        gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
-        for gyro_axis, gamepad_axis in gyro_mapping.items():
-            if gamepad_axis and gyro_axis in gyro_values:
-                value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
-                if config.DEBUG:
-                    print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
-                virtual_joystick.set_axis(gamepad_axis, value)
+        # 如果没有新的轴配置，回退到旧的 gyro_axis_mapping
+        if not axis_config:
+            gyro_mapping = button_config.get('driving_config', {}).get('gyro_axis_mapping', {})
+            if not gyro_mapping:
+                gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
+            
+            # 使用旧的映射方式
+            gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
+            for gyro_axis, gamepad_axis in gyro_mapping.items():
+                if gamepad_axis and gyro_axis in gyro_values:
+                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
+                    if config.DEBUG:
+                        print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
+                    virtual_joystick.set_axis(gamepad_axis, value)
+        else:
+            # 使用新的统一轴配置
+            gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
+            for gamepad_axis, axis_cfg in axis_config.items():
+                if axis_cfg.get('source_type') == 'gyro' and axis_cfg.get('source_id'):
+                    gyro_axis = axis_cfg['source_id']
+                    if gyro_axis in gyro_values:
+                        raw_value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis)
+                        # 应用死区
+                        value = apply_deadzone(raw_value, axis_cfg.get('deadzone', 0.05))
+                        # 应用峰值限制
+                        value = apply_peak_value(value, axis_cfg.get('peak_value', 1.0))
+                        if config.DEBUG:
+                            print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                        virtual_joystick.set_axis(gamepad_axis, value)
     else:
         if config.DEBUG:
             print("[GYRO] 警告: 虚拟摇杆未初始化")
@@ -239,18 +254,33 @@ def handle_slider_value(data):
     # 应用到虚拟手柄（如果已初始化）
     if virtual_joystick and virtual_joystick.initialized:
         button_config = load_config()
-        # 从 buttons 中查找拖动条配置
-        buttons = button_config.get('buttons', [])
-        slider = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
+        axis_config = button_config.get('driving_config', {}).get('axis_config', {})
         
-        if slider and slider.get('axis'):
-            axis = slider['axis']
-            if config.DEBUG:
-                print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
-            virtual_joystick.set_axis(axis, value)
+        # 如果没有新的轴配置，回退到旧方式
+        if not axis_config:
+            buttons = button_config.get('buttons', [])
+            slider = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
+            
+            if slider and slider.get('axis'):
+                axis = slider['axis']
+                if config.DEBUG:
+                    print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
+                virtual_joystick.set_axis(axis, value)
+            else:
+                if config.DEBUG:
+                    print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
         else:
-            if config.DEBUG:
-                print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
+            # 使用新的统一轴配置
+            for gamepad_axis, axis_cfg in axis_config.items():
+                if axis_cfg.get('source_type') == 'slider' and axis_cfg.get('source_id') == slider_id:
+                    # 应用死区
+                    processed_value = apply_deadzone(value, axis_cfg.get('deadzone', 0.05))
+                    # 应用峰值限制
+                    processed_value = apply_peak_value(processed_value, axis_cfg.get('peak_value', 1.0))
+                    if config.DEBUG:
+                        print(f"[SLIDER] 应用到轴: {gamepad_axis} = {processed_value:.3f} [原始={value:.3f}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                    virtual_joystick.set_axis(gamepad_axis, processed_value)
+                    break
     else:
         if config.DEBUG:
             print("[SLIDER] 警告: 虚拟摇杆未初始化")
@@ -276,6 +306,20 @@ def normalize_gyro_value(gyro_value, gyro_axis):
         normalized = gyro_value if gyro_value <= 180 else gyro_value - 360
         return max(-1.0, min(1.0, normalized / 180.0))
     return 0.0
+
+def apply_deadzone(value, deadzone):
+    """应用死区到输入值"""
+    if abs(value) < deadzone:
+        return 0.0
+    # 移除死区后重新映射到完整范围
+    if value > 0:
+        return (value - deadzone) / (1.0 - deadzone)
+    else:
+        return (value + deadzone) / (1.0 - deadzone)
+
+def apply_peak_value(value, peak_value):
+    """应用峰值限制到输入值"""
+    return value * peak_value
 
 def init_virtual_joystick():
     """初始化驾驶模式的虚拟摇杆"""

@@ -56,12 +56,22 @@ const app = createApp({
             gyro_deadzone: 2.0,
             max_steering_angle: 45.0,
             gyro_update_rate: 60,
+            // 旧的陀螺仪轴映射（保留用于兼容性）
             gyro_axis_mapping: {
                 gamma: 'left_x',
                 beta: 'left_y',
                 alpha: null
             },
-            sliders: []
+            sliders: [],
+            // 新的统一轴配置
+            axis_config: {
+                left_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 },
+                left_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 },
+                right_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 },
+                right_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 },
+                left_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 },
+                right_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05 }
+            }
         });
         
         // Canvas state
@@ -106,6 +116,40 @@ const app = createApp({
             return '500px';
         });
         
+        // 可用的拖动条列表（用于轴配置）
+        const availableSliders = computed(() => {
+            return buttonsData.value.filter(b => b.type === 'slider');
+        });
+        
+        // 轴配置列表（用于表格显示）
+        const axisConfigList = computed(() => {
+            const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+            return axes.map(axis => ({
+                axis,
+                ...drivingConfig.axis_config[axis]
+            }));
+        });
+        
+        // 获取轴的显示名称
+        const getAxisDisplayName = (axis) => {
+            const names = {
+                'left_x': '左摇杆 X',
+                'left_y': '左摇杆 Y',
+                'right_x': '右摇杆 X',
+                'right_y': '右摇杆 Y',
+                'left_trigger': '左扳机',
+                'right_trigger': '右扳机'
+            };
+            return names[axis] || axis;
+        };
+        
+        // 当轴的源类型改变时
+        const onAxisSourceTypeChange = (axisConfig) => {
+            if (axisConfig.source_type === 'none') {
+                axisConfig.source_id = null;
+            }
+        };
+        
         // Track active buttons (currently pressed) - supports multiple simultaneous presses
         const activeButtonsMap = reactive({});
         
@@ -132,12 +176,70 @@ const app = createApp({
                 if (data.driving_config) {
                     Object.assign(drivingConfig, data.driving_config);
                     slidersData.value = drivingConfig.sliders || [];
+                    
+                    // 如果没有新的轴配置，从旧的gyro_axis_mapping和slider配置迁移
+                    if (!drivingConfig.axis_config || Object.keys(drivingConfig.axis_config).length === 0) {
+                        migrateToUnifiedAxisConfig();
+                    } else {
+                        // 确保所有轴都有配置
+                        const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+                        axes.forEach(axis => {
+                            if (!drivingConfig.axis_config[axis]) {
+                                drivingConfig.axis_config[axis] = {
+                                    source_type: 'none',
+                                    source_id: null,
+                                    default_value: axis.includes('trigger') ? 0 : 0,
+                                    peak_value: 1.0,
+                                    deadzone: 0.05
+                                };
+                            }
+                        });
+                    }
                 }
                 
                 markDirty();
             } catch (error) {
                 console.error('加载配置失败：', error);
             }
+        };
+        
+        // 从旧配置迁移到新的统一轴配置
+        const migrateToUnifiedAxisConfig = () => {
+            console.log('[迁移] 从旧配置迁移到统一轴配置');
+            
+            // 初始化轴配置
+            const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+            axes.forEach(axis => {
+                drivingConfig.axis_config[axis] = {
+                    source_type: 'none',
+                    source_id: null,
+                    default_value: axis.includes('trigger') ? 0 : 0,
+                    peak_value: 1.0,
+                    deadzone: 0.05
+                };
+            });
+            
+            // 从旧的 gyro_axis_mapping 迁移
+            if (drivingConfig.gyro_axis_mapping) {
+                Object.entries(drivingConfig.gyro_axis_mapping).forEach(([gyroAxis, gamepadAxis]) => {
+                    if (gamepadAxis && drivingConfig.axis_config[gamepadAxis]) {
+                        drivingConfig.axis_config[gamepadAxis].source_type = 'gyro';
+                        drivingConfig.axis_config[gamepadAxis].source_id = gyroAxis;
+                    }
+                });
+            }
+            
+            // 从旧的 sliders 配置迁移
+            if (drivingConfig.sliders && drivingConfig.sliders.length > 0) {
+                drivingConfig.sliders.forEach(slider => {
+                    if (slider.axis && drivingConfig.axis_config[slider.axis]) {
+                        drivingConfig.axis_config[slider.axis].source_type = 'slider';
+                        drivingConfig.axis_config[slider.axis].source_id = slider.id;
+                    }
+                });
+            }
+            
+            console.log('[迁移] 迁移完成', drivingConfig.axis_config);
         };
         
         // Canvas rendering
@@ -720,8 +822,8 @@ const app = createApp({
             if (editingButton.type === 'slider') {
                 buttonData.orientation = editingButton.orientation;
                 buttonData.autoCenter = editingButton.autoCenter;
-                buttonData.axis = editingButton.axis;
                 buttonData.currentValue = editingButton.currentValue || 0.0;
+                // 不再保存 axis 属性，因为轴绑定现在在驾驶配置中统一管理
             }
             
             try {
@@ -750,11 +852,6 @@ const app = createApp({
                     buttonsData.value.push(buttonData);
                 }
                 
-                // \u5982\u679c\u662f\u9a7e\u9a76\u6a21\u5f0f\u4e14\u662f\u62d6\u52a8\u6761\uff0c\u66f4\u65b0\u9a7e\u9a76\u914d\u7f6e
-                if (mode.value === 'driving' && editingButton.type === 'slider') {
-                    await saveDrivingConfig();
-                }
-                
                 markDirty();
                 showEditDialog.value = false;
             } catch (error) {
@@ -765,18 +862,30 @@ const app = createApp({
         
         const saveDrivingConfig = async () => {
             try {
-                // \u4ece buttonsData \u4e2d\u63d0\u53d6\u6240\u6709\u62d6\u52a8\u6761
-                const sliders = buttonsData.value
-                    .filter(b => b.type === 'slider')
-                    .map(s => ({
-                        id: s.id,
-                        label: s.label,
-                        axis: s.axis,
-                        orientation: s.orientation,
-                        autoCenter: s.autoCenter
-                    }));
+                // 更新旧的 gyro_axis_mapping 和 sliders（保持向后兼容）
+                const newGyroMapping = { gamma: null, beta: null, alpha: null };
+                const newSliders = [];
                 
-                drivingConfig.sliders = sliders;
+                // 从统一轴配置中反向生成旧格式
+                Object.entries(drivingConfig.axis_config).forEach(([axis, config]) => {
+                    if (config.source_type === 'gyro' && config.source_id) {
+                        newGyroMapping[config.source_id] = axis;
+                    } else if (config.source_type === 'slider' && config.source_id) {
+                        const sliderBtn = buttonsData.value.find(b => b.id === config.source_id && b.type === 'slider');
+                        if (sliderBtn) {
+                            newSliders.push({
+                                id: sliderBtn.id,
+                                label: sliderBtn.label,
+                                axis: axis,
+                                orientation: sliderBtn.orientation,
+                                autoCenter: sliderBtn.autoCenter
+                            });
+                        }
+                    }
+                });
+                
+                drivingConfig.gyro_axis_mapping = newGyroMapping;
+                drivingConfig.sliders = newSliders;
                 
                 await fetch('/api/update_driving_config', {
                     method: 'POST',
@@ -947,6 +1056,10 @@ const app = createApp({
             dialogWidth,
             activeButtonsMap,
             BUTTON_COLORS,
+            availableSliders,
+            axisConfigList,
+            getAxisDisplayName,
+            onAxisSourceTypeChange,
             toggleEditMode,
             saveLayout,
             editButton,
