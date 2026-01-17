@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
 
 // Helper functions for showing messages
 const showMessage = {
@@ -25,15 +25,30 @@ const showMessage = {
     }
 };
 
+// Element Plus default button colors
+const BUTTON_COLORS = [
+    { name: 'Primary', color: '#409eff' },
+    { name: 'Success', color: '#67c23a' },
+    { name: 'Warning', color: '#e6a23c' },
+    { name: 'Danger', color: '#f56c6c' },
+    { name: 'Info', color: '#909399' }
+];
+
 const app = createApp({
     setup() {
         const socket = io();
-        const gamePad = ref(null);
+        const canvasRef = ref(null);
         const buttonsData = ref([]);
         const isEditing = ref(false);
         const mode = ref('custom_keys');
         const modifierKeys = ref([]);
         const specialKeys = ref([]);
+        
+        // Canvas state
+        let ctx = null;
+        let canvasWidth = 0;
+        let canvasHeight = 0;
+        let animationFrameId = null;
         
         // Edit dialog state
         const showEditDialog = ref(false);
@@ -41,13 +56,13 @@ const app = createApp({
             id: '',
             label: '',
             keys: [],
-            color: '#555555',
+            colorIndex: 0,
             width: 100,
             height: 100,
             x: 10,
             y: 10
         });
-        const selectedModifier = ref('');
+        const selectedModifiers = ref([]); // Support multiple modifiers
         const selectedSpecialKey = ref('');
         const customKeyInput = ref('');
         
@@ -65,21 +80,14 @@ const app = createApp({
             return '500px';
         });
         
-        // Track active buttons (currently pressed) - use reactive object
+        // Track active buttons (currently pressed) - supports multiple simultaneous presses
         const activeButtonsMap = reactive({});
-        const activeButtons = {
-            has(id) { return !!activeButtonsMap[id]; },
-            add(id) { activeButtonsMap[id] = true; },
-            delete(id) { delete activeButtonsMap[id]; },
-            clear() { Object.keys(activeButtonsMap).forEach(k => delete activeButtonsMap[k]); }
-        };
         
-        // Drag state
-        let draggedButton = null;
-        let dragOffset = { x: 0, y: 0 };
+        // Pointer tracking for multi-touch support
+        const pointerToButton = new Map(); // pointerId -> buttonId
         
-        // Touch tracking for proper button detection
-        let activeTouches = new Map(); // touchId -> buttonId
+        // Drag/resize state for edit mode
+        let dragState = null; // { buttonIndex, mode: 'move'|'resize', offsetX, offsetY, corner }
         
         // Load initial config
         const loadConfig = async () => {
@@ -90,152 +98,297 @@ const app = createApp({
                 mode.value = data.mode || 'custom_keys';
                 modifierKeys.value = data.modifier_keys || ['ctrl', 'shift', 'alt', 'cmd', 'win'];
                 specialKeys.value = data.special_keys || [];
+                renderCanvas();
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
         };
         
-        // Find button element at a given point
-        const getButtonAtPoint = (x, y) => {
-            const elements = document.elementsFromPoint(x, y);
-            for (const el of elements) {
-                if (el.classList.contains('game-btn')) {
-                    return el;
+        // Canvas rendering
+        const initCanvas = () => {
+            const canvas = canvasRef.value;
+            if (!canvas) return;
+            
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
+            
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Start render loop
+            renderLoop();
+        };
+        
+        const resizeCanvas = () => {
+            const canvas = canvasRef.value;
+            if (!canvas) return;
+            
+            const container = canvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            
+            // Use device pixel ratio for sharp rendering
+            const dpr = window.devicePixelRatio || 1;
+            canvasWidth = rect.width;
+            canvasHeight = rect.height;
+            
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            canvas.style.width = canvasWidth + 'px';
+            canvas.style.height = canvasHeight + 'px';
+            
+            ctx.scale(dpr, dpr);
+            renderCanvas();
+        };
+        
+        const renderLoop = () => {
+            renderCanvas();
+            animationFrameId = requestAnimationFrame(renderLoop);
+        };
+        
+        const renderCanvas = () => {
+            if (!ctx) return;
+            
+            // Clear canvas
+            ctx.fillStyle = '#f0f2f5';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Draw each button
+            buttonsData.value.forEach((btn, index) => {
+                drawButton(btn, index);
+            });
+        };
+        
+        const drawButton = (btn, index) => {
+            const isActive = !!activeButtonsMap[btn.id];
+            const colorIndex = btn.colorIndex !== undefined ? btn.colorIndex : 0;
+            const color = BUTTON_COLORS[colorIndex % BUTTON_COLORS.length].color;
+            
+            let x = btn.x;
+            let y = btn.y;
+            let width = btn.width;
+            let height = btn.height;
+            
+            // Apply active press effect
+            if (isActive) {
+                const shrink = 3;
+                x += shrink;
+                y += shrink;
+                width -= shrink * 2;
+                height -= shrink * 2;
+            }
+            
+            // Draw button background
+            ctx.fillStyle = color;
+            ctx.strokeStyle = isEditing.value ? '#409eff' : 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = isEditing.value ? 2 : 1;
+            
+            // Rounded rectangle
+            const radius = 8;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            
+            ctx.fill();
+            
+            if (isEditing.value) {
+                ctx.setLineDash([5, 3]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Draw button label
+            ctx.fillStyle = 'white';
+            ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 2;
+            ctx.shadowOffsetY = 1;
+            ctx.fillText(btn.label, x + width/2, y + height/2);
+            ctx.shadowBlur = 0;
+            
+            // Draw resize handle in edit mode
+            if (isEditing.value) {
+                const handleSize = 12;
+                ctx.fillStyle = '#409eff';
+                ctx.fillRect(
+                    btn.x + btn.width - handleSize,
+                    btn.y + btn.height - handleSize,
+                    handleSize,
+                    handleSize
+                );
+            }
+        };
+        
+        // Find button at a given point (canvas coordinates)
+        const getButtonAtPoint = (canvasX, canvasY) => {
+            // Check buttons in reverse order (top-most first)
+            for (let i = buttonsData.value.length - 1; i >= 0; i--) {
+                const btn = buttonsData.value[i];
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    return { button: btn, index: i };
                 }
             }
             return null;
         };
         
-        // Get button data by ID
-        const getButtonData = (id) => {
-            return buttonsData.value.find(btn => btn.id === id);
+        // Check if point is on resize handle
+        const isOnResizeHandle = (btn, canvasX, canvasY) => {
+            const handleSize = 16;
+            return canvasX >= btn.x + btn.width - handleSize &&
+                   canvasX <= btn.x + btn.width &&
+                   canvasY >= btn.y + btn.height - handleSize &&
+                   canvasY <= btn.y + btn.height;
+        };
+        
+        // Convert page coordinates to canvas coordinates
+        const pageToCanvas = (pageX, pageY) => {
+            const canvas = canvasRef.value;
+            if (!canvas) return { x: 0, y: 0 };
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: pageX - rect.left,
+                y: pageY - rect.top
+            };
         };
         
         // Handle button press
-        const handleButtonPress = (btnId, element) => {
-            const btn = getButtonData(btnId);
+        const handleButtonPress = (btnId) => {
+            const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
             
-            activeButtons.add(btnId);
-            socket.emit('button_down', { id: btn.id, label: btn.label });
+            activeButtonsMap[btnId] = true;
+            socket.emit('button_down', { id: btn.id, label: btn.label, keys: btn.keys });
         };
         
         // Handle button release
         const handleButtonRelease = (btnId) => {
-            const btn = getButtonData(btnId);
-            if (!btn) return;
+            if (!activeButtonsMap[btnId]) return;
             
-            activeButtons.delete(btnId);
-            socket.emit('button_up', { id: btn.id });
+            delete activeButtonsMap[btnId];
+            socket.emit('button_up', { id: btnId });
         };
         
-        // Setup touch/pointer event handlers after Vue renders
-        const setupEventHandlers = () => {
-            const pad = gamePad.value;
-            if (!pad) return;
+        // Canvas event handlers
+        const setupCanvasEvents = () => {
+            const canvas = canvasRef.value;
+            if (!canvas) return;
             
-            // Use pointer events for unified touch/mouse handling
-            pad.addEventListener('pointerdown', onPointerDown, { passive: false });
-            pad.addEventListener('pointermove', onPointerMove, { passive: false });
-            pad.addEventListener('pointerup', onPointerUp, { passive: false });
-            pad.addEventListener('pointercancel', onPointerUp, { passive: false });
-            pad.addEventListener('pointerleave', onPointerUp, { passive: false });
+            canvas.addEventListener('pointerdown', onCanvasPointerDown, { passive: false });
+            canvas.addEventListener('pointermove', onCanvasPointerMove, { passive: false });
+            canvas.addEventListener('pointerup', onCanvasPointerUp, { passive: false });
+            canvas.addEventListener('pointercancel', onCanvasPointerUp, { passive: false });
+            canvas.addEventListener('pointerleave', onCanvasPointerUp, { passive: false });
         };
         
-        const onPointerDown = (e) => {
+        const onCanvasPointerDown = (e) => {
             e.preventDefault();
+            const canvas = canvasRef.value;
+            canvas.setPointerCapture(e.pointerId);
             
-            const buttonEl = getButtonAtPoint(e.clientX, e.clientY);
-            if (!buttonEl) return;
+            const { x, y } = pageToCanvas(e.clientX, e.clientY);
+            const hit = getButtonAtPoint(x, y);
             
-            const btnId = buttonEl.dataset.id;
+            if (!hit) return;
             
             if (isEditing.value) {
-                // Start dragging in edit mode
-                startDrag(e, buttonEl);
+                // Check if on resize handle
+                if (isOnResizeHandle(hit.button, x, y)) {
+                    dragState = {
+                        buttonIndex: hit.index,
+                        mode: 'resize',
+                        startWidth: hit.button.width,
+                        startHeight: hit.button.height,
+                        startX: x,
+                        startY: y
+                    };
+                } else {
+                    dragState = {
+                        buttonIndex: hit.index,
+                        mode: 'move',
+                        offsetX: x - hit.button.x,
+                        offsetY: y - hit.button.y
+                    };
+                }
             } else {
-                // Track this touch/pointer
-                activeTouches.set(e.pointerId, btnId);
-                handleButtonPress(btnId, buttonEl);
+                // Normal mode - track button press
+                pointerToButton.set(e.pointerId, hit.button.id);
+                handleButtonPress(hit.button.id);
             }
         };
         
-        const onPointerMove = (e) => {
+        const onCanvasPointerMove = (e) => {
             e.preventDefault();
+            const { x, y } = pageToCanvas(e.clientX, e.clientY);
             
-            if (isEditing.value && draggedButton) {
-                // Handle drag movement
-                moveDrag(e);
+            if (isEditing.value && dragState) {
+                const btn = buttonsData.value[dragState.buttonIndex];
+                
+                if (dragState.mode === 'move') {
+                    btn.x = Math.max(0, Math.min(x - dragState.offsetX, canvasWidth - btn.width));
+                    btn.y = Math.max(0, Math.min(y - dragState.offsetY, canvasHeight - btn.height));
+                } else if (dragState.mode === 'resize') {
+                    const deltaX = x - dragState.startX;
+                    const deltaY = y - dragState.startY;
+                    btn.width = Math.max(50, Math.min(300, dragState.startWidth + deltaX));
+                    btn.height = Math.max(50, Math.min(300, dragState.startHeight + deltaY));
+                }
             } else if (!isEditing.value) {
-                // Check if pointer moved to a different button
-                const currentBtnId = activeTouches.get(e.pointerId);
+                // Check if pointer moved to different button
+                const currentBtnId = pointerToButton.get(e.pointerId);
                 if (currentBtnId === undefined) return;
                 
-                const buttonEl = getButtonAtPoint(e.clientX, e.clientY);
-                const newBtnId = buttonEl ? buttonEl.dataset.id : null;
+                const hit = getButtonAtPoint(x, y);
+                const newBtnId = hit ? hit.button.id : null;
                 
                 if (newBtnId !== currentBtnId) {
-                    // Pointer moved to different button
+                    // Release old button
                     if (currentBtnId) {
                         handleButtonRelease(currentBtnId);
                     }
+                    // Press new button
                     if (newBtnId) {
-                        activeTouches.set(e.pointerId, newBtnId);
-                        handleButtonPress(newBtnId, buttonEl);
+                        pointerToButton.set(e.pointerId, newBtnId);
+                        handleButtonPress(newBtnId);
                     } else {
-                        activeTouches.delete(e.pointerId);
+                        pointerToButton.delete(e.pointerId);
                     }
                 }
             }
         };
         
-        const onPointerUp = (e) => {
+        const onCanvasPointerUp = (e) => {
             e.preventDefault();
             
             if (isEditing.value) {
-                endDrag();
+                dragState = null;
             } else {
-                const btnId = activeTouches.get(e.pointerId);
+                const btnId = pointerToButton.get(e.pointerId);
                 if (btnId) {
                     handleButtonRelease(btnId);
-                    activeTouches.delete(e.pointerId);
+                    pointerToButton.delete(e.pointerId);
                 }
             }
         };
         
-        // Drag functions for edit mode
-        const startDrag = (e, el) => {
-            draggedButton = el;
-            const rect = el.getBoundingClientRect();
-            dragOffset.x = e.clientX - rect.left;
-            dragOffset.y = e.clientY - rect.top;
-            el.setPointerCapture(e.pointerId);
-        };
-        
-        const moveDrag = (e) => {
-            if (!draggedButton) return;
+        // Double-click to edit button
+        const onCanvasDoubleClick = (e) => {
+            if (!isEditing.value) return;
             
-            const pad = gamePad.value;
-            const padRect = pad.getBoundingClientRect();
+            const { x, y } = pageToCanvas(e.clientX, e.clientY);
+            const hit = getButtonAtPoint(x, y);
             
-            let newX = e.clientX - padRect.left - dragOffset.x;
-            let newY = e.clientY - padRect.top - dragOffset.y;
-            
-            // Clamp to boundaries
-            newX = Math.max(0, Math.min(newX, padRect.width - draggedButton.offsetWidth));
-            newY = Math.max(0, Math.min(newY, padRect.height - draggedButton.offsetHeight));
-            
-            draggedButton.style.left = newX + 'px';
-            draggedButton.style.top = newY + 'px';
-            
-            // Update data model
-            const index = parseInt(draggedButton.dataset.index);
-            buttonsData.value[index].x = newX;
-            buttonsData.value[index].y = newY;
-        };
-        
-        const endDrag = () => {
-            draggedButton = null;
+            if (hit) {
+                editButton(hit.button);
+            }
         };
         
         // Edit mode functions
@@ -246,8 +399,7 @@ const app = createApp({
                 Object.keys(activeButtonsMap).forEach(btnId => {
                     handleButtonRelease(btnId);
                 });
-                activeButtons.clear();
-                activeTouches.clear();
+                pointerToButton.clear();
             }
         };
         
@@ -262,7 +414,7 @@ const app = createApp({
                 id: btn.id,
                 label: btn.label,
                 keys: [...(btn.keys || [])],
-                color: btn.color || '#555555',
+                colorIndex: btn.colorIndex !== undefined ? btn.colorIndex : 0,
                 width: btn.width || 100,
                 height: btn.height || 100,
                 x: btn.x,
@@ -274,35 +426,41 @@ const app = createApp({
         const addNewButton = () => {
             Object.assign(editingButton, {
                 id: '',
-                label: 'New Button',
+                label: 'New',
                 keys: [],
-                color: '#555555',
-                width: 100,
-                height: 100,
+                colorIndex: 0,
+                width: 80,
+                height: 80,
                 x: 50,
                 y: 50
             });
             showEditDialog.value = true;
         };
         
+        // Add all selected keys at once (supports multiple modifiers)
         const addKey = () => {
-            let keyToAdd = '';
+            // Add all selected modifiers
+            selectedModifiers.value.forEach(mod => {
+                if (!editingButton.keys.includes(mod)) {
+                    editingButton.keys.push(mod);
+                }
+            });
+            selectedModifiers.value = [];
             
-            if (selectedModifier.value) {
-                keyToAdd = selectedModifier.value;
-                editingButton.keys.push(keyToAdd);
-                selectedModifier.value = '';
-            }
-            
+            // Add special key
             if (selectedSpecialKey.value) {
-                keyToAdd = selectedSpecialKey.value;
-                editingButton.keys.push(keyToAdd);
+                if (!editingButton.keys.includes(selectedSpecialKey.value)) {
+                    editingButton.keys.push(selectedSpecialKey.value);
+                }
                 selectedSpecialKey.value = '';
             }
             
+            // Add custom key
             if (customKeyInput.value) {
-                keyToAdd = customKeyInput.value.toLowerCase();
-                editingButton.keys.push(keyToAdd);
+                const key = customKeyInput.value.toLowerCase();
+                if (!editingButton.keys.includes(key)) {
+                    editingButton.keys.push(key);
+                }
                 customKeyInput.value = '';
             }
         };
@@ -316,7 +474,7 @@ const app = createApp({
                 id: editingButton.id,
                 label: editingButton.label,
                 keys: editingButton.keys,
-                color: editingButton.color,
+                colorIndex: editingButton.colorIndex,
                 width: editingButton.width,
                 height: editingButton.height,
                 x: editingButton.x,
@@ -381,11 +539,8 @@ const app = createApp({
         };
         
         // Gyroscope handling
-        let gyroHandler = null;
-        
         const startGyroscope = () => {
             if (typeof DeviceOrientationEvent !== 'undefined') {
-                // Check if we need to request permission (iOS 13+)
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(permissionState => {
@@ -440,16 +595,27 @@ const app = createApp({
         onMounted(() => {
             loadConfig();
             nextTick(() => {
-                setupEventHandlers();
+                initCanvas();
+                setupCanvasEvents();
+                
+                // Setup double-click
+                const canvas = canvasRef.value;
+                if (canvas) {
+                    canvas.addEventListener('dblclick', onCanvasDoubleClick);
+                }
             });
         });
         
         onUnmounted(() => {
             stopGyroscope();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            window.removeEventListener('resize', resizeCanvas);
         });
         
         return {
-            gamePad,
+            canvasRef,
             buttonsData,
             isEditing,
             mode,
@@ -457,7 +623,7 @@ const app = createApp({
             specialKeys,
             showEditDialog,
             editingButton,
-            selectedModifier,
+            selectedModifiers,
             selectedSpecialKey,
             customKeyInput,
             showMainDeviceDialog,
@@ -465,8 +631,8 @@ const app = createApp({
             isMainDevice,
             gyroData,
             dialogWidth,
-            activeButtons,
             activeButtonsMap,
+            BUTTON_COLORS,
             toggleEditMode,
             saveLayout,
             editButton,

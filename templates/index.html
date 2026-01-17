@@ -77,6 +77,7 @@
                 <el-form-item label="Button Label">
                     <el-input v-model="editingButton.label" placeholder="Enter button name"></el-input>
                 </el-form-item>
+                
                 <el-form-item label="Key Bindings">
                     <div class="key-tags">
                         <el-tag
@@ -92,9 +93,11 @@
                     </div>
                     <div class="key-input-group">
                         <el-select 
-                            v-model="selectedModifier" 
-                            placeholder="Modifier"
+                            v-model="selectedModifiers"
+                            placeholder="Modifiers"
                             clearable
+                            multiple
+                            collapse-tags
                             size="default"
                         >
                             <el-option 
@@ -124,32 +127,49 @@
                             size="default"
                             @keyup.enter="addKey"
                         ></el-input>
-                        <el-button type="primary" size="default" @click="addKey">Add Key</el-button>
+                        <el-button type="primary" size="default" @click="addKey">Add Keys</el-button>
                     </div>
-                    <p class="key-hint">Add modifier keys first, then the main key (e.g., ctrl, alt, del)</p>
+                    <p class="key-hint">Select multiple modifiers (ctrl, alt, shift) then add a key (e.g., del for Ctrl+Alt+Del)</p>
                 </el-form-item>
-                <el-form-item label="Button Color">
-                    <el-color-picker v-model="editingButton.color" size="default"></el-color-picker>
+                
+                <el-form-item label="Button Style">
+                    <el-radio-group v-model="editingButton.colorIndex">
+                        <el-radio-button 
+                            v-for="(color, index) in BUTTON_COLORS" 
+                            :key="index" 
+                            :label="index"
+                        >
+                            <span :style="{ color: color.color }">●</span> {{ color.name }}
+                        </el-radio-button>
+                    </el-radio-group>
                 </el-form-item>
-                <el-form-item label="Width">
-                    <el-slider 
-                        v-model="editingButton.width" 
-                        :min="50" 
-                        :max="300" 
-                        :step="10"
-                        show-input
-                        :show-input-controls="false"
-                    ></el-slider>
-                </el-form-item>
-                <el-form-item label="Height">
-                    <el-slider 
-                        v-model="editingButton.height" 
-                        :min="50" 
-                        :max="300" 
-                        :step="10"
-                        show-input
-                        :show-input-controls="false"
-                    ></el-slider>
+                
+                <el-form-item label="Button Size">
+                    <div class="size-inputs">
+                        <div class="size-input-row">
+                            <span>Width:</span>
+                            <el-slider 
+                                v-model="editingButton.width" 
+                                :min="50" 
+                                :max="200" 
+                                :step="10"
+                                show-input
+                                :show-input-controls="false"
+                            ></el-slider>
+                        </div>
+                        <div class="size-input-row">
+                            <span>Height:</span>
+                            <el-slider 
+                                v-model="editingButton.height" 
+                                :min="50" 
+                                :max="200" 
+                                :step="10"
+                                show-input
+                                :show-input-controls="false"
+                            ></el-slider>
+                        </div>
+                    </div>
+                    <p class="key-hint">You can also drag the corner handle in edit mode to resize</p>
                 </el-form-item>
             </el-form>
             <template #footer>
@@ -163,25 +183,11 @@
             </template>
         </el-dialog>
         
-        <!-- Game Pad Area -->
-        <div id="game-pad" ref="gamePad">
-            <div
-                v-for="(btn, index) in buttonsData"
-                :key="btn.id"
-                class="game-btn"
-                :class="{ editing: isEditing, active: activeButtonsMap[btn.id] }"
-                :style="{
-                    backgroundColor: btn.color || '#555',
-                    left: btn.x + 'px',
-                    top: btn.y + 'px',
-                    width: btn.width + 'px',
-                    height: btn.height + 'px'
-                }"
-                :data-id="btn.id"
-                :data-index="index"
-                @dblclick="editButton(btn)"
-            >
-                {{ btn.label }}
+        <!-- Canvas-based Game Pad Area -->
+        <div id="game-pad-container">
+            <canvas ref="canvasRef" id="game-pad-canvas"></canvas>
+            <div v-if="isEditing" class="edit-hint">
+                <el-tag type="info" size="small">Drag to move • Drag corner to resize • Double-click to edit</el-tag>
             </div>
         </div>
         
