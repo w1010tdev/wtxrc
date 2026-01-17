@@ -81,30 +81,59 @@
         }
     ],
     "driving_config": {
-        "gyro_sensitivity": 1,
-        "gyro_deadzone": 2,
-        "max_steering_angle": 45,
+        "gyro_sensitivity": 1.0,
+        "gyro_deadzone": 2.0,
+        "max_steering_angle": 45.0,
         "gyro_update_rate": 60,
         "gyro_axis_mapping": {
-            "alpha": null,
-            "beta": "left_y",
-            "gamma": "left_x"
+            "gamma": "left_x",
+            "beta": null,
+            "alpha": null
         },
-        "sliders": [
-            {
-                "id": "btn6",
-                "label": "Slider",
-                "axis": "right_x",
-                "orientation": "horizontal",
-                "autoCenter": true
+        "sliders": [],
+        "axis_config": {
+            "left_x": {
+                "source_type": "gyro",
+                "source_id": "gamma",
+                "default_value": 0.0,
+                "peak_value": 0.8,
+                "deadzone": 0.1
             },
-            {
-                "id": "btn12",
-                "label": "Slider",
-                "axis": "left_trigger",
-                "orientation": "vertical",
-                "autoCenter": true
+            "left_y": {
+                "source_type": "none",
+                "source_id": null,
+                "default_value": 0.0,
+                "peak_value": 1.0,
+                "deadzone": 0.05
+            },
+            "right_x": {
+                "source_type": "slider",
+                "source_id": "btn6",
+                "default_value": 0.0,
+                "peak_value": 1.0,
+                "deadzone": 0.05
+            },
+            "right_y": {
+                "source_type": "none",
+                "source_id": null,
+                "default_value": 0.0,
+                "peak_value": 1.0,
+                "deadzone": 0.05
+            },
+            "left_trigger": {
+                "source_type": "slider",
+                "source_id": "btn12",
+                "default_value": 0.0,
+                "peak_value": 1.0,
+                "deadzone": 0.05
+            },
+            "right_trigger": {
+                "source_type": "none",
+                "source_id": null,
+                "default_value": 0.0,
+                "peak_value": 1.0,
+                "deadzone": 0.05
             }
-        ]
+        }
     }
 }
