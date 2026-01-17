@@ -281,7 +281,7 @@ const app = createApp({
             
             activeButtonsMap[btnId] = true;
             markDirty();
-            // Don't emit button_down here - only on release
+            // Visual feedback only - key action will be executed on pointer release
         };
         
         // Handle button release (visual only)
@@ -290,7 +290,7 @@ const app = createApp({
             
             delete activeButtonsMap[btnId];
             markDirty();
-            // Don't emit button_up here
+            // Visual state cleanup only - no key events emitted
         };
         
         // Execute button action (on final release)
@@ -298,9 +298,12 @@ const app = createApp({
             const btn = buttonsData.value.find(b => b.id === btnId);
             if (!btn) return;
             
-            // Send key press and release
+            // Send button_down first, then button_up after a small delay
+            // This allows the server to properly handle the sequence
             socket.emit('button_down', { id: btn.id, label: btn.label });
-            socket.emit('button_up', { id: btn.id });
+            setTimeout(() => {
+                socket.emit('button_up', { id: btn.id });
+            }, 50); // 50ms delay allows server to process events in order
         };
         
         // Canvas event handlers
