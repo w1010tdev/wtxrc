@@ -395,8 +395,8 @@ const app = createApp({
             const color = BUTTON_COLORS[colorIndex % BUTTON_COLORS.length].color;
             
             // 获取当前值和范围模式
-            const sliderValue = slider.currentValue !== undefined ? slider.currentValue : 0.0;
             const rangeMode = slider.rangeMode || 'bipolar';  // 'bipolar' ([-1, 1]) 或 'unipolar' ([0, 1])
+            const sliderValue = slider.currentValue !== undefined ? slider.currentValue : getSliderDefaultValue(rangeMode);
             
             // 绘制背景轨道
             ctx.fillStyle = 'rgba(0,0,0,0.1)';
