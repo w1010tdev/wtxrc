@@ -508,7 +508,21 @@ def init_virtual_joystick():
     if config.MODE == 'driving':
         try:
             from joystick_manager import VirtualJoystick
-            virtual_joystick = VirtualJoystick()
+            # 加载配置（优先使用 buttons.json，否则使用 config.py）
+            button_config = load_config()
+            joystick_config = None
+            
+            # 从 buttons.json 构建摇杆配置
+            if 'joystick_type' in button_config:
+                joystick_config = {
+                    'type': button_config['joystick_type'],
+                    'name': button_config.get('joystick_name', 'wtxrc Custom Joystick')
+                }
+                if button_config['joystick_type'] == 'custom' and 'custom_joystick' in button_config:
+                    joystick_config['custom'] = button_config['custom_joystick']
+            
+            # 传递配置到 VirtualJoystick（会自动回退到 config.py 如果 joystick_config 为 None）
+            virtual_joystick = VirtualJoystick(joystick_config=joystick_config)
             if virtual_joystick.initialized:
                 if config.DEBUG:
                     print("[INIT] ✅ 虚拟摇杆已成功初始化")

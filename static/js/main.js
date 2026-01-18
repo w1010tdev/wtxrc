@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
 
 // Constants
 const MIN_BUTTON_SIZE = 50;
@@ -78,6 +78,27 @@ const app = createApp({
         const joystickType = ref('xbox360');  // 'xbox360' 或 'custom'
         const customJoystickAxisCount = ref(8);  // 自定义摇杆的轴数量
         const customAxisMapping = reactive({});  // 自定义摇杆的轴映射
+        
+        // 初始化自定义摇杆轴映射（确保所有轴都有配置）
+        const initializeCustomAxisMapping = () => {
+            for (let i = 0; i < customJoystickAxisCount.value; i++) {
+                if (!customAxisMapping[i]) {
+                    customAxisMapping[i] = {
+                        source_type: 'none',
+                        source_id: null,
+                        peak_value: 1.0,
+                        deadzone: 0.05,
+                        gyro_range: 90.0,
+                        invert: false
+                    };
+                }
+            }
+        };
+        
+        // 监听轴数量变化，自动初始化新的轴配置
+        watch(customJoystickAxisCount, () => {
+            initializeCustomAxisMapping();
+        });
         
         // Canvas state
         let ctx = null;
@@ -162,19 +183,14 @@ const app = createApp({
         const customAxisConfigList = computed(() => {
             const list = [];
             for (let i = 0; i < customJoystickAxisCount.value; i++) {
-                if (!customAxisMapping[i]) {
-                    customAxisMapping[i] = {
-                        source_type: 'none',
-                        source_id: null,
-                        peak_value: 1.0,
-                        deadzone: 0.05,
-                        gyro_range: 90.0,
-                        invert: false
-                    };
-                }
                 const cfg = customAxisMapping[i];
-                cfg.axisIndex = i;
-                list.push(cfg);
+                if (cfg) {
+                    // 创建一个新对象，包含 axisIndex，而不是直接修改 cfg
+                    list.push({
+                        ...cfg,
+                        axisIndex: i
+                    });
+                }
             }
             return list;
         });
@@ -279,6 +295,8 @@ const app = createApp({
                     if (data.custom_joystick.axis_mapping) {
                         Object.assign(customAxisMapping, data.custom_joystick.axis_mapping);
                     }
+                    // 初始化任何缺失的轴配置
+                    initializeCustomAxisMapping();
                 }
                 
                 // 加载驾驶模式配置
