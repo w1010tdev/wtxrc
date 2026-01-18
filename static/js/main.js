@@ -1,4 +1,13 @@
-const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
+const {
+    createApp,
+    ref,
+    reactive,
+    computed,
+    onMounted,
+    onUnmounted,
+    nextTick,
+    watch
+} = Vue;
 
 // Constants
 const MIN_BUTTON_SIZE = 50;

@@ -33,8 +33,9 @@ except ImportError:
 class CustomVirtualJoystick:
     """自定义多轴虚拟摇杆，支持可配置的轴数量。"""
     
-    # Linux uinput axis codes mapping (class constant to avoid duplication)
-    UINPUT_AXIS_CODES = None  # Will be initialized when uinput is available
+    # Linux uinput axis codes mapping (class constant, lazily initialized when uinput is available)
+    UINPUT_AXIS_CODES = None
+    _axis_codes_lock = threading.Lock()  # Thread-safe initialization
     
     def __init__(self, axis_count=8, name="Custom Virtual Joystick"):
         """
@@ -71,17 +72,20 @@ class CustomVirtualJoystick:
         elif self.system == 'Linux':
             try:
                 import uinput
-                # Initialize class constant on first use
+                # Initialize class constant on first use (thread-safe)
                 if CustomVirtualJoystick.UINPUT_AXIS_CODES is None:
-                    CustomVirtualJoystick.UINPUT_AXIS_CODES = [
-                        uinput.ABS_X, uinput.ABS_Y, uinput.ABS_Z,
-                        uinput.ABS_RX, uinput.ABS_RY, uinput.ABS_RZ,
-                        uinput.ABS_THROTTLE, uinput.ABS_RUDDER,
-                        uinput.ABS_WHEEL, uinput.ABS_GAS, uinput.ABS_BRAKE,
-                        uinput.ABS_HAT0X, uinput.ABS_HAT0Y, uinput.ABS_HAT1X,
-                        uinput.ABS_HAT1Y, uinput.ABS_HAT2X, uinput.ABS_HAT2Y,
-                        uinput.ABS_HAT3X, uinput.ABS_HAT3Y, uinput.ABS_PRESSURE,
-                    ]
+                    with CustomVirtualJoystick._axis_codes_lock:
+                        # Double-check after acquiring lock
+                        if CustomVirtualJoystick.UINPUT_AXIS_CODES is None:
+                            CustomVirtualJoystick.UINPUT_AXIS_CODES = [
+                                uinput.ABS_X, uinput.ABS_Y, uinput.ABS_Z,
+                                uinput.ABS_RX, uinput.ABS_RY, uinput.ABS_RZ,
+                                uinput.ABS_THROTTLE, uinput.ABS_RUDDER,
+                                uinput.ABS_WHEEL, uinput.ABS_GAS, uinput.ABS_BRAKE,
+                                uinput.ABS_HAT0X, uinput.ABS_HAT0Y, uinput.ABS_HAT1X,
+                                uinput.ABS_HAT1Y, uinput.ABS_HAT2X, uinput.ABS_HAT2Y,
+                                uinput.ABS_HAT3X, uinput.ABS_HAT3Y, uinput.ABS_PRESSURE,
+                            ]
                 
                 # 创建包含指定数量轴的 uinput 设备
                 events = []
