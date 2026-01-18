@@ -280,6 +280,12 @@ def handle_button_up(data):
     if btn:
         input_manager.execute_combination(btn.get('keys', []))
 
+@socketio.on('hide_overlay')
+def handle_hide_overlay():
+    """处理隐藏overlay的请求"""
+    print("Hiding overlay")
+    overlay_queue.put({'cmd': 'HIDE'})
+
 @socketio.on('slider_value')
 def handle_slider_value(data):
     """处理拖动条值的更新"""
@@ -299,6 +305,16 @@ def handle_slider_value(data):
             print("[SLIDER] 虚拟摇杆已初始化，应用拖动条值")
         button_config = load_config()
         axis_config = button_config.get('driving_config', {}).get('axis_config', {})
+        buttons = button_config.get('buttons', [])
+        # 找到滑块的展示标签/autoCenter 信息（如果存在）
+        slider_btn = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
+        slider_label = slider_btn.get('label') if slider_btn else slider_id
+        slider_auto_center = bool(slider_btn.get('autoCenter')) if slider_btn else False
+        # 显示 overlay（实时显示正在操作的滑块）
+        try:
+            overlay_queue.put({'cmd': 'SHOW', 'text': f"{slider_label}: {value:.2f}"})
+        except Exception:
+            pass
         
         # 如果没有新的轴配置，回退到旧方式
         if not axis_config:
@@ -333,6 +349,16 @@ def handle_slider_value(data):
                         print(f"[SLIDER] 应用到轴: {gamepad_axis} = {processed_value:.3f} [原始={value:.3f}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
                     virtual_joystick.set_axis(gamepad_axis, processed_value)
                     break
+        # 如果滑块设置为自动归中并且回到默认值，则隐藏 overlay
+        try:
+            default_val = 0.5 if (slider_btn and slider_btn.get('rangeMode') == 'unipolar') else 0.0
+            if slider_auto_center and abs(value - default_val) < 1e-3:
+                try:
+                    overlay_queue.put({'cmd': 'HIDE'})
+                except Exception:
+                    pass
+        except Exception:
+            pass
     else:
         if config.DEBUG:
             print("[SLIDER] 警告: 虚拟摇杆未初始化")

@@ -22,8 +22,55 @@ class OverlayApp:
         
         # Note: Joystick is now managed by main process, overlay only displays
         
-        # Always run in headless mode for server environment
-        self.run_headless()
+        # Run GUI mode if tkinter is available, otherwise headless
+        if HAS_TKINTER:
+            self.run_gui()
+        else:
+            self.run_headless()
+    
+    def run_gui(self):
+        """Run overlay in GUI mode with tkinter window."""
+        import threading
+        
+        def gui_thread():
+            self.root = tk.Tk()
+            self.root.title("WTXRC Overlay")
+            self.root.geometry("400x100")
+            self.root.attributes("-topmost", True)
+            self.root.attributes("-alpha", 0.8)
+            self.root.overrideredirect(True)  # Remove window borders
+            
+            # Position the window higher up on screen
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            x = (screen_width - 400) // 2
+            y = (screen_height - 100) // 4  # Position at 1/4 of screen height
+            self.root.geometry(f"400x100+{x}+{y}")
+            
+            # Create label for text display
+            self.label = tk.Label(self.root, text="", font=("Arial", 24), bg="black", fg="white")
+            self.label.pack(expand=True, fill=tk.BOTH)
+            
+            # Start hidden
+            self.root.withdraw()
+            
+            # Start checking queue
+            self.root.after(50, self.check_queue)
+            
+            # Start the GUI event loop
+            self.root.mainloop()
+        
+        # Start GUI in a separate thread
+        gui_thread = threading.Thread(target=gui_thread, daemon=True)
+        gui_thread.start()
+        
+        # Keep the process alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            if hasattr(self, 'root'):
+                self.root.quit()
     
     def run_headless(self):
         """Run overlay in headless mode (no GUI, just process messages)."""

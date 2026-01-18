@@ -80,6 +80,9 @@ const app = createApp({
         let canvasHeight = 0;
         let animationFrameId = null;
         
+        // 跟踪pointer事件序列中是否碰到了操控组件
+        const pointerTouchedControl = new Map();
+        
         // 编辑对话态
         const showEditDialog = ref(false);
         const showDrivingConfigDialog = ref(false);  // 驾驶模式配置对话框
@@ -642,6 +645,9 @@ const app = createApp({
             const { x, y } = pageToCanvas(e.clientX, e.clientY);
             const hit = getButtonAtPoint(x, y);
             
+            // 初始化pointer跟踪：记录是否碰到了操控组件
+            pointerTouchedControl.set(e.pointerId, hit !== null);
+            
             if (isEditing.value) {
                 if (!hit) return;
                 // Check if on resize handle
@@ -684,6 +690,14 @@ const app = createApp({
         const onCanvasPointerMove = (e) => {
             e.preventDefault();
             const { x, y } = pageToCanvas(e.clientX, e.clientY);
+            
+            // 如果在这个pointer序列中还没有碰到操控组件，检查当前是否碰到了
+            if (!pointerTouchedControl.get(e.pointerId)) {
+                const hit = getButtonAtPoint(x, y);
+                if (hit) {
+                    pointerTouchedControl.set(e.pointerId, true);
+                }
+            }
             
             if (isEditing.value && dragState) {
                 const btn = buttonsData.value[dragState.buttonIndex];
@@ -743,6 +757,16 @@ const app = createApp({
                     handleButtonRelease(btnId);
                     pointerToButton.delete(e.pointerId);
                 }
+                
+                // 检查整个pointer序列是否没有碰到操控组件
+                const touchedControl = pointerTouchedControl.get(e.pointerId);
+                if (!touchedControl) {
+                    // 如果没有碰到操控组件，发送隐藏overlay的命令
+                    socket.emit('hide_overlay');
+                }
+                
+                // 清理跟踪状态
+                pointerTouchedControl.delete(e.pointerId);
             }
         };
         
