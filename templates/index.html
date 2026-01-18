@@ -93,7 +93,7 @@
             <el-form :model="drivingConfig" label-position="top">
                 <el-divider content-position="left">Xbox 手柄轴配置</el-divider>
                 <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
-                    为每个 Xbox 手柄轴配置输入源（陀螺仪或拖动条）、默认值、峰值和死区
+                    为每个 Xbox 手柄轴配置输入源（陀螺仪或拖动条）、峰值和死区
                 </p>
                 
                 <!-- 轴配置表格 -->
@@ -138,18 +138,6 @@
                                 ></el-option>
                             </el-select>
                             <span v-else style="color: var(--el-color-info); font-size: 12px;">-</span>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="默认值" width="100">
-                        <template #default="scope">
-                            <el-input-number 
-                                v-model="scope.row.default_value" 
-                                :min="scope.row.axis.includes('trigger') ? 0 : -1" 
-                                :max="1" 
-                                :step="0.1" 
-                                size="small"
-                                :disabled="scope.row.source_type === 'none'"
-                            ></el-input-number>
                         </template>
                     </el-table-column>
                     <el-table-column label="峰值" width="100">
@@ -197,7 +185,6 @@
                     style="margin-top: 10px;"
                 >
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-                        <li>默认值：轴的静止状态值（摇杆为0，扳机通常为0）</li>
                         <li>峰值：轴的最大输出值（1.0 = 100%）</li>
                         <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
                         <li>陀螺仪范围：转动多少度达到满输出（如 90 度表示转动 90 度输出从 0 到 1）</li>

@@ -52,7 +52,7 @@
         {
             "id": "btn6",
             "type": "slider",
-            "label": "Slider",
+            "label": "Slider1",
             "keys": [],
             "colorIndex": 0,
             "width": 200,
@@ -61,76 +61,33 @@
             "y": 140.39999389648438,
             "orientation": "horizontal",
             "autoCenter": true,
+            "rangeMode": "bipolar",
             "currentValue": 0
         },
         {
             "id": "btn12",
             "type": "slider",
-            "label": "Slider",
+            "label": "Slider0",
             "keys": [],
             "colorIndex": 0,
             "width": 60,
             "height": 200,
-            "x": 284.40000915527344,
-            "y": 81.99996948242188,
+            "x": 282.8000030517578,
+            "y": 25.999969482421875,
             "orientation": "vertical",
-            "autoCenter": true,
-            "currentValue": 0
+            "autoCenter": false,
+            "rangeMode": "unipolar",
+            "currentValue": 0.5
         }
     ],
     "driving_config": {
-        "gyro_sensitivity": 1.0,
-        "gyro_deadzone": 2.0,
-        "max_steering_angle": 45.0,
-        "gyro_update_rate": 60,
-        "gyro_axis_mapping": {
-            "gamma": "left_x",
-            "beta": null,
-            "alpha": null
-        },
-        "sliders": [],
         "axis_config": {
-            "left_x": {
-                "source_type": "gyro",
-                "source_id": "gamma",
-                "default_value": 0.0,
-                "peak_value": 0.8,
-                "deadzone": 0.1
-            },
-            "left_y": {
-                "source_type": "none",
-                "source_id": null,
-                "default_value": 0.0,
-                "peak_value": 1.0,
-                "deadzone": 0.05
-            },
-            "right_x": {
+            "right_trigger": {
                 "source_type": "slider",
                 "source_id": "btn6",
-                "default_value": 0.0,
                 "peak_value": 1.0,
-                "deadzone": 0.05
-            },
-            "right_y": {
-                "source_type": "none",
-                "source_id": null,
-                "default_value": 0.0,
-                "peak_value": 1.0,
-                "deadzone": 0.05
-            },
-            "left_trigger": {
-                "source_type": "slider",
-                "source_id": "btn12",
-                "default_value": 0.0,
-                "peak_value": 1.0,
-                "deadzone": 0.05
-            },
-            "right_trigger": {
-                "source_type": "none",
-                "source_id": null,
-                "default_value": 0.0,
-                "peak_value": 1.0,
-                "deadzone": 0.05
+                "deadzone": 0.05,
+                "gyro_range": 90.0
             }
         }
     }

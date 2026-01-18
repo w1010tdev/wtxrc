@@ -65,12 +65,12 @@ const app = createApp({
             sliders: [],
             // 新的统一轴配置
             axis_config: {
-                left_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
-                left_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
-                right_x: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
-                right_y: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
-                left_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
-                right_trigger: { source_type: 'none', source_id: null, default_value: 0, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 }
+                left_x: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_y: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_x: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_y: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_trigger: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_trigger: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 }
             }
         });
         
@@ -125,10 +125,13 @@ const app = createApp({
         // 轴配置列表（用于表格显示）
         const axisConfigList = computed(() => {
             const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
-            return axes.map(axis => ({
-                axis,
-                ...drivingConfig.axis_config[axis]
-            }));
+            return axes.map(axisName => {
+                // 直接返回 drivingConfig.axis_config[axisName] 的引用
+                // 这样在表格中修改 scope.row 的属性会直接反映到 drivingConfig 中
+                const cfg = drivingConfig.axis_config[axisName];
+                cfg.axis = axisName; // 确保包含 axis 属性供前端显示逻辑使用
+                return cfg;
+            });
         });
         
         // 获取轴的显示名称
@@ -194,7 +197,6 @@ const app = createApp({
                                 drivingConfig.axis_config[axis] = {
                                     source_type: 'none',
                                     source_id: null,
-                                    default_value: 0,
                                     peak_value: 1.0,
                                     deadzone: 0.05,
                                     gyro_range: 90.0
@@ -223,7 +225,6 @@ const app = createApp({
                 drivingConfig.axis_config[axis] = {
                     source_type: 'none',
                     source_id: null,
-                    default_value: 0,
                     peak_value: 1.0,
                     deadzone: 0.05,
                     gyro_range: 90.0
@@ -923,6 +924,8 @@ const app = createApp({
         
         const saveDrivingConfig = async () => {
             try {
+                console.log('开始保存驾驶配置...');
+                console.log('当前drivingConfig:', drivingConfig);
                 // 更新旧的 gyro_axis_mapping 和 sliders（保持向后兼容）
                 const newGyroMapping = { gamma: null, beta: null, alpha: null };
                 const newSliders = [];
@@ -948,16 +951,26 @@ const app = createApp({
                 drivingConfig.gyro_axis_mapping = newGyroMapping;
                 drivingConfig.sliders = newSliders;
                 
-                await fetch('/api/update_driving_config', {
+                console.log('准备发送请求，数据:', { driving_config: drivingConfig });
+                const response = await fetch('/api/update_driving_config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ driving_config: drivingConfig })
                 });
                 
+                console.log('收到响应:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('保存驾驶配置响应:', result);
+                
                 showMessage.success('驾驶配置已保存，请重启服务器以应用更改');
             } catch (error) {
                 console.error('保存驾驶配置失败：', error);
-                showMessage.error('保存驾驶配置失败');
+                showMessage.error('保存驾驶配置失败: ' + error.message);
             }
         };
         

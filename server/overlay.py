@@ -20,48 +20,10 @@ class OverlayApp:
         self.joystick = None
         self.gyro_processor = None
         
-        # Try to initialize joystick for driving mode
-        try:
-            from joystick_manager import VirtualJoystick, GyroProcessor
-            from config import config
-            if config.MODE == 'driving':
-                self.joystick = VirtualJoystick()
-                self.gyro_processor = GyroProcessor(
-                    sensitivity=config.DRIVING_CONFIG.get('gyro_sensitivity', 1.0),
-                    deadzone=config.DRIVING_CONFIG.get('gyro_deadzone', 2.0),
-                    max_angle=config.DRIVING_CONFIG.get('max_steering_angle', 45.0)
-                )
-        except Exception as e:
-            print(f"Joystick initialization skipped: {e}")
+        # Note: Joystick is now managed by main process, overlay only displays
         
-        if not HAS_TKINTER:
-            # Run without GUI, just process messages
-            self.run_headless()
-            return
-            
-        self.root = tk.Tk()
-        self.root.overrideredirect(True) # Remove border
-        self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.7) # Transparency
-        self.root.configure(bg='black')
-        
-        # Center of screen roughly, or specific spot
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        w = 400
-        h = 100
-        x = (screen_width - w) // 2
-        y = (screen_height - h) // 4 # Top quarter
-        
-        self.root.geometry(f"{w}x{h}+{x}+{y}")
-        
-        self.label = tk.Label(self.root, text="", font=("Helvetica", 24, "bold"), fg="white", bg="black")
-        self.label.pack(expand=True, fill='both')
-        
-        self.root.withdraw() # Start hidden
-        
-        self.root.after(100, self.check_queue)
-        self.root.mainloop()
+        # Always run in headless mode for server environment
+        self.run_headless()
     
     def run_headless(self):
         """Run overlay in headless mode (no GUI, just process messages)."""
@@ -84,8 +46,6 @@ class OverlayApp:
                     elif cmd == 'HIDE':
                         print(f"[覆盖层] 隐藏")
                     elif cmd == 'quit':
-                        if self.joystick:
-                            self.joystick.close()
                         self.running = False
                         return
                 except queue.Empty:
@@ -109,8 +69,6 @@ class OverlayApp:
                 # app.py会直接处理陀螺仪数据并应用到虚拟摇杆
                 pass
             elif cmd == 'quit':
-                if self.joystick:
-                    self.joystick.close()
                 self.root.destroy()
                 return
         except queue.Empty:

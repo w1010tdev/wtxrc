@@ -1,11 +1,14 @@
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 import json
 import os
 import sys
 import multiprocessing
 from overlay import run_overlay
 import input_manager
+import signal
+import time
 
 # 将配置目录加入路径以便导入
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -13,7 +16,8 @@ from config import config
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app)
+CORS(app)  # 启用CORS
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # IPC Queue for Overlay
 overlay_queue = multiprocessing.Queue()
@@ -55,8 +59,12 @@ def get_config():
     button_config['mode'] = config.MODE
     button_config['modifier_keys'] = config.MODIFIER_KEYS
     button_config['special_keys'] = config.SPECIAL_KEYS
+    
+    # 优先使用 buttons.json 中的 driving_config，如果没有则使用 config.py 中的默认值
     if config.MODE == 'driving':
-        button_config['driving_config'] = config.DRIVING_CONFIG
+        if 'driving_config' not in button_config:
+            button_config['driving_config'] = config.DRIVING_CONFIG
+            
     return jsonify(button_config)
 
 @app.route('/api/update_button', methods=['POST'])
@@ -109,13 +117,43 @@ def delete_button():
 @app.route('/api/update_driving_config', methods=['POST'])
 def update_driving_config():
     """更新驾驶模式配置（陀螺仪轴映射和拖动条）"""
-    data = request.json
-    # 保存到config.py中需要重启服务器
-    # 这里我们保存到buttons.json中
-    current_config = load_config()
-    current_config['driving_config'] = data.get('driving_config', {})
-    save_config(current_config)
-    return jsonify({'status': 'success', 'message': '配置已保存，请重启服务器以应用更改'})
+    try:
+        if config.DEBUG:
+            print("[CONFIG] 收到驾驶配置更新请求")
+            print(f"[CONFIG] 请求方法: {request.method}")
+            print(f"[CONFIG] 请求头: {dict(request.headers)}")
+        
+        data = request.json
+        if config.DEBUG:
+            print(f"[CONFIG] 请求数据: {data}")
+            if data:
+                driving_config = data.get('driving_config', {})
+                print(f"[CONFIG] 驾驶配置内容: {driving_config}")
+        
+        # 保存到config.py中需要重启服务器
+        # 这里我们保存到buttons.json中
+        current_config = load_config()
+        driving_config = data.get('driving_config', {}) if data else {}
+        current_config['driving_config'] = driving_config
+        
+        if config.DEBUG:
+            print(f"[CONFIG] 保存驾驶配置: {driving_config}")
+        
+        save_config(current_config)
+        
+        if config.DEBUG:
+            print("[CONFIG] 驾驶配置保存成功")
+        
+        response = jsonify({'status': 'success', 'message': '配置已保存，请重启服务器以应用更改'})
+        if config.DEBUG:
+            print(f"[CONFIG] 返回响应: {response.get_json()}")
+        return response
+        
+    except Exception as e:
+        print(f"[CONFIG] 错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @socketio.on('connect')
 def handle_connect():
@@ -257,11 +295,15 @@ def handle_slider_value(data):
     
     # 应用到虚拟手柄（如果已初始化）
     if virtual_joystick and virtual_joystick.initialized:
+        if config.DEBUG:
+            print("[SLIDER] 虚拟摇杆已初始化，应用拖动条值")
         button_config = load_config()
         axis_config = button_config.get('driving_config', {}).get('axis_config', {})
         
         # 如果没有新的轴配置，回退到旧方式
         if not axis_config:
+            if config.DEBUG:
+                print("[SLIDER] 警告: 找不到按钮新版配置")
             buttons = button_config.get('buttons', [])
             slider = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
             
@@ -274,8 +316,14 @@ def handle_slider_value(data):
                 if config.DEBUG:
                     print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
         else:
+            if config.DEBUG:
+                print("[SLIDER] 使用新版统一轴配置应用拖动条值")
+                print(f"[SLIDER] axis_config: {axis_config}")
+                print(f"[SLIDER] 查找 slider_id: {slider_id}")
             # 使用新的统一轴配置
             for gamepad_axis, axis_cfg in axis_config.items():
+                if config.DEBUG:
+                    print(f"[SLIDER] 检查轴 {gamepad_axis}: {axis_cfg}")
                 if axis_cfg.get('source_type') == 'slider' and axis_cfg.get('source_id') == slider_id:
                     # 应用死区
                     processed_value = apply_deadzone(value, axis_cfg.get('deadzone', 0.05))
@@ -362,6 +410,69 @@ def start_overlay():
     overlay_process.daemon = True
     overlay_process.start()
 
+
+def shutdown_server(grace_period: float = 2.0):
+    """Attempt to gracefully shutdown background resources."""
+    global overlay_process, virtual_joystick
+    try:
+        if config.DEBUG:
+            print("[SHUTDOWN] 开始优雅关闭流程")
+
+        # 请求 overlay 进程退出
+        try:
+            overlay_queue.put({'cmd': 'quit'})
+        except Exception:
+            pass
+
+        # 等待 overlay 进程结束
+        if overlay_process is not None:
+            if config.DEBUG:
+                print(f"[SHUTDOWN] 等待 overlay 进程退出 (pid={getattr(overlay_process, 'pid', None)})")
+            overlay_process.join(timeout=grace_period)
+            if overlay_process.is_alive():
+                if config.DEBUG:
+                    print("[SHUTDOWN] overlay 进程未在超时内退出，尝试终止")
+                try:
+                    overlay_process.terminate()
+                except Exception:
+                    pass
+                overlay_process.join(timeout=1.0)
+
+        # 关闭虚拟摇杆
+        try:
+            if virtual_joystick is not None:
+                if config.DEBUG:
+                    print("[SHUTDOWN] 关闭虚拟摇杆")
+                virtual_joystick.close()
+        except Exception:
+            pass
+
+        # 停止监视器（如果存在）
+        try:
+            from joystick_monitor import stop_monitor
+            stop_monitor()
+        except Exception:
+            pass
+
+        if config.DEBUG:
+            print("[SHUTDOWN] 清理完成")
+    except Exception as e:
+        print(f"[SHUTDOWN] 清理时发生错误: {e}")
+
+
+def _signal_handler(sig, frame):
+    # Called on SIGINT/SIGTERM
+    try:
+        print(f"[SIGNAL] 收到信号 {sig}, 触发退出")
+        shutdown_server()
+    finally:
+        # 使用强制退出以确保没有残留线程阻塞
+        try:
+            time.sleep(0.1)
+        except Exception:
+            pass
+        os._exit(0)
+
 if __name__ == '__main__':
     # Initialize virtual joystick for driving mode
     init_virtual_joystick()
@@ -374,4 +485,22 @@ if __name__ == '__main__':
     )
     # Start server
     # host='0.0.0.0' so it is accessible from other devices
-    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    # Register signal handlers so Ctrl+C triggers cleanup
+    try:
+        signal.signal(signal.SIGINT, _signal_handler)
+    except Exception:
+        pass
+    try:
+        signal.signal(signal.SIGTERM, _signal_handler)
+    except Exception:
+        pass
+
+    try:
+        socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    except KeyboardInterrupt:
+        # In some environments KeyboardInterrupt may be raised instead of signal handler
+        print("[MAIN] KeyboardInterrupt caught, shutting down...")
+        shutdown_server()
+    finally:
+        # Ensure cleanup on exit
+        shutdown_server()

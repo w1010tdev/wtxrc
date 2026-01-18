@@ -40,7 +40,6 @@ DRIVING_CONFIG = {
         "left_x": {
             "source_type": "gyro",  # none, gyro, slider
             "source_id": "gamma",   # 陀螺仪轴名称或拖动条ID
-            "default_value": 0.0,   # 默认值
             "peak_value": 1.0,      # 峰值（最大输出）
             "deadzone": 0.05,       # 死区
             "gyro_range": 90.0      # 陀螺仪归一化范围（度），90度表示转动90度达到满输出
@@ -48,7 +47,6 @@ DRIVING_CONFIG = {
         "left_y": {
             "source_type": "gyro",
             "source_id": "beta",
-            "default_value": 0.0,
             "peak_value": 1.0,
             "deadzone": 0.05,
             "gyro_range": 90.0
@@ -56,7 +54,6 @@ DRIVING_CONFIG = {
         "right_x": {
             "source_type": "none",
             "source_id": None,
-            "default_value": 0.0,
             "peak_value": 1.0,
             "deadzone": 0.05,
             "gyro_range": 90.0      # 默认90度，用户可根据需要调整
@@ -64,7 +61,6 @@ DRIVING_CONFIG = {
         "right_y": {
             "source_type": "none",
             "source_id": None,
-            "default_value": 0.0,
             "peak_value": 1.0,
             "deadzone": 0.05,
             "gyro_range": 90.0
@@ -72,7 +68,6 @@ DRIVING_CONFIG = {
         "left_trigger": {
             "source_type": "none",
             "source_id": None,
-            "default_value": 0.0,
             "peak_value": 1.0,
             "deadzone": 0.05,
             "gyro_range": 90.0
@@ -80,7 +75,6 @@ DRIVING_CONFIG = {
         "right_trigger": {
             "source_type": "none",
             "source_id": None,
-            "default_value": 0.0,
             "peak_value": 1.0,
             "deadzone": 0.05,
             "gyro_range": 90.0
