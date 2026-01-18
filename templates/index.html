@@ -131,10 +131,11 @@
                                 placeholder="选择拖动条"
                             >
                                 <el-option 
-                                    v-for="slider in availableSliders" 
+                                    v-for="slider in getAvailableSlidersForAxis(scope.row.axis)" 
                                     :key="slider.id" 
-                                    :label="slider.label" 
+                                    :label="slider.displayLabel" 
                                     :value="slider.id"
+                                    :disabled="slider.disabled"
                                 ></el-option>
                             </el-select>
                             <span v-else style="color: var(--el-color-info); font-size: 12px;">-</span>
@@ -188,7 +189,7 @@
                         <li>峰值：轴的最大输出值（1.0 = 100%）</li>
                         <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
                         <li>陀螺仪范围：转动多少度达到满输出（如 90 度表示转动 90 度输出从 0 到 1）</li>
-                        <li>每个拖动条只能绑定到一个轴，已绑定的拖动条会在列表中标记</li>
+                        <li>每个拖动条只能绑定到一个轴，已绑定到其他轴的拖动条在下拉列表中会被禁用</li>
                     </ul>
                 </el-alert>
             </el-form>

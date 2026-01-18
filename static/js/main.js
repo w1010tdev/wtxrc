@@ -122,8 +122,42 @@ const app = createApp({
         
         // 可用的拖动条列表（用于轴配置）
         const availableSliders = computed(() => {
-            return buttonsData.value.filter(b => b.type === 'slider');
+            const sliders = buttonsData.value.filter(b => b.type === 'slider');
+            // 收集已绑定的滑块 ID
+            const boundSliderIds = new Set();
+            Object.values(drivingConfig.axis_config || {}).forEach(cfg => {
+                if (cfg.source_type === 'slider' && cfg.source_id) {
+                    boundSliderIds.add(cfg.source_id);
+                }
+            });
+            
+            // 为每个滑块添加绑定状态标记
+            return sliders.map(slider => ({
+                ...slider,
+                isBound: boundSliderIds.has(slider.id),
+                displayLabel: boundSliderIds.has(slider.id) ? `${slider.label} [已绑定]` : slider.label
+            }));
         });
+        
+        // 获取可用于特定轴的滑块列表（排除已绑定到其他轴的滑块）
+        const getAvailableSlidersForAxis = (currentAxis) => {
+            const sliders = buttonsData.value.filter(b => b.type === 'slider');
+            const currentSourceId = drivingConfig.axis_config[currentAxis]?.source_id;
+            
+            return sliders.map(slider => {
+                // 检查此滑块是否已绑定到其他轴
+                const boundToOtherAxis = Object.entries(drivingConfig.axis_config || {}).some(
+                    ([axis, cfg]) => axis !== currentAxis && cfg.source_type === 'slider' && cfg.source_id === slider.id
+                );
+                
+                return {
+                    ...slider,
+                    isBound: boundToOtherAxis,
+                    displayLabel: boundToOtherAxis ? `${slider.label} [已绑定到其他轴]` : slider.label,
+                    disabled: boundToOtherAxis
+                };
+            });
+        };
         
         // 轴配置列表（用于表格显示）
         const axisConfigList = computed(() => {
@@ -183,6 +217,13 @@ const app = createApp({
                 mode.value = data.mode || 'custom_keys';
                 modifierKeys.value = data.modifier_keys || ['ctrl', 'shift', 'alt', 'cmd', 'win'];
                 specialKeys.value = data.special_keys || [];
+                
+                // 清理旧的 axis 属性从所有滑块中
+                buttonsData.value.forEach(btn => {
+                    if (btn.type === 'slider' && btn.hasOwnProperty('axis')) {
+                        delete btn.axis;
+                    }
+                });
                 
                 // 加载驾驶模式配置
                 if (data.driving_config) {
@@ -814,7 +855,6 @@ const app = createApp({
                 y: btn.y,
                 orientation: btn.orientation || 'horizontal',
                 autoCenter: btn.autoCenter !== undefined ? btn.autoCenter : true,
-                axis: btn.axis || 'right_x',
                 rangeMode: btn.rangeMode || 'bipolar'  // 向后兼容：旧的拖动条默认为bipolar
             });
             showEditDialog.value = true;
@@ -1157,6 +1197,7 @@ const app = createApp({
             availableSliders,
             axisConfigList,
             getAxisDisplayName,
+            getAvailableSlidersForAxis,
             onAxisSourceTypeChange,
             toggleEditMode,
             saveLayout,

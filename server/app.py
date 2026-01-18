@@ -255,6 +255,11 @@ def handle_gyro_data(data):
                         if config.DEBUG:
                             print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [range={gyro_range}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
                         virtual_joystick.set_axis(gamepad_axis, value)
+                elif axis_cfg.get('source_type') == 'none':
+                    # 当轴配置为 none 时，显式将该轴重置为 0，避免保留上一次的陀螺仪值
+                    if config.DEBUG:
+                        print(f"[GYRO] 轴 {gamepad_axis} 的 source_type=none，重置为 0")
+                    virtual_joystick.set_axis(gamepad_axis, 0.0)
     else:
         if config.DEBUG:
             print("[GYRO] 警告: 虚拟摇杆未初始化")
@@ -393,7 +398,8 @@ def normalize_gyro_value(gyro_value, gyro_axis, gyro_range=45.0):
 
 def apply_deadzone(value, deadzone):
     """应用死区到输入值"""
-    if abs(value) < deadzone:
+    # 使用 <= 来处理边界情况，确保在死区阈值处的连续性
+    if abs(value) <= deadzone:
         return 0.0
     # 防止除以零
     if deadzone >= 1.0:
