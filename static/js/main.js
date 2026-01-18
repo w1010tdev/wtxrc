@@ -120,25 +120,6 @@ const app = createApp({
             return '500px';
         });
         
-        // 可用的拖动条列表（用于轴配置）
-        const availableSliders = computed(() => {
-            const sliders = buttonsData.value.filter(b => b.type === 'slider');
-            // 收集已绑定的滑块 ID
-            const boundSliderIds = new Set();
-            Object.values(drivingConfig.axis_config || {}).forEach(cfg => {
-                if (cfg.source_type === 'slider' && cfg.source_id) {
-                    boundSliderIds.add(cfg.source_id);
-                }
-            });
-            
-            // 为每个滑块添加绑定状态标记
-            return sliders.map(slider => ({
-                ...slider,
-                isBound: boundSliderIds.has(slider.id),
-                displayLabel: boundSliderIds.has(slider.id) ? `${slider.label} [已绑定]` : slider.label
-            }));
-        });
-        
         // 获取可用于特定轴的滑块列表（排除已绑定到其他轴的滑块）
         const getAvailableSlidersForAxis = (currentAxis) => {
             const sliders = buttonsData.value.filter(b => b.type === 'slider');
@@ -151,7 +132,8 @@ const app = createApp({
                 );
                 
                 return {
-                    ...slider,
+                    id: slider.id,
+                    label: slider.label,
                     isBound: boundToOtherAxis,
                     displayLabel: boundToOtherAxis ? `${slider.label} [已绑定到其他轴]` : slider.label,
                     disabled: boundToOtherAxis
@@ -1194,7 +1176,6 @@ const app = createApp({
             dialogWidth,
             activeButtonsMap,
             BUTTON_COLORS,
-            availableSliders,
             axisConfigList,
             getAxisDisplayName,
             getAvailableSlidersForAxis,
