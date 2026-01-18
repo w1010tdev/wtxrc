@@ -5,5 +5,11 @@ pynput
 eventlet
 
 # 可选：驾驶模式下用于虚拟摇杆的依赖
-# Windows: pip install vgamepad (also requires ViGEmBus driver)
-# Linux: pip install python-uinput
+
+# Xbox 360 模式（标准 6 轴控制器）
+# Windows: pip install vgamepad (also requires ViGEmBus driver from https://github.com/ViGEm/ViGEmBus/releases)
+# Linux: pip install python-uinput (may require sudo permissions)
+
+# 自定义多轴摇杆模式（支持 1-32 轴，适用于飞行模拟等）
+# Windows: pip install pyvjoy (also requires vJoy driver from https://sourceforge.net/projects/vjoystick/)
+# Linux: pip install python-uinput (may require sudo permissions)

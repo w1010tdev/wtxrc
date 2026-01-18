@@ -9,6 +9,7 @@
 - **悬浮覆盖层** — 在 PC 上显示当前被按下的按键
 - **低延迟** — 使用 WebSocket 以尽可能降低延迟
 - **驾驶模式** — 使用设备陀螺仪模拟方向盘
+- **🎮 自定义虚拟摇杆** — 支持 Xbox 360 和自定义多轴摇杆（1-32轴），适用于飞行模拟等场景
 
 ## 安装
 
@@ -18,8 +19,9 @@
    ```
 
 2. （可选）驾驶模式需要虚拟摇杆：
-   - **Windows**：从 https://github.com/ViGEm/ViGEmBus/releases 安装 ViGEmBus 驱动，然后 `pip install vgamepad`
-   - **Linux**：`pip install python-uinput`（可能需要 sudo 权限）
+   - **Windows (Xbox 360 模式)**：从 https://github.com/ViGEm/ViGEmBus/releases 安装 ViGEmBus 驱动，然后 `pip install vgamepad`
+   - **Windows (自定义摇杆模式)**：从 https://sourceforge.net/projects/vjoystick/ 安装 vJoy 驱动，然后 `pip install pyvjoy`
+   - **Linux**：`pip install python-uinput`（可能需要 sudo 权限），并加载内核模块 `sudo modprobe uinput`
 
 ## 使用方法
 
@@ -65,6 +67,20 @@
 2. 系统会询问是否将该设备设为主设备
 3. 主设备的陀螺仪数据将用于转向控制
 4. 左右倾斜设备即可转向
+
+#### 虚拟摇杆配置
+驾驶模式支持两种虚拟摇杆：
+
+- **Xbox 360 模式**（默认）：标准 6 轴控制器（2个摇杆 + 2个扳机）
+- **自定义多轴摇杆模式**：支持 1-32 个轴，适用于飞行模拟、太空模拟等场景
+
+**配置方法：**
+1. 点击界面上的 **⚙️ 驾驶配置** 按钮
+2. 在对话框顶部选择摇杆类型
+3. 为每个轴配置输入源（陀螺仪或拖动条）、峰值、死区等参数
+4. 保存并重启服务器
+
+详细配置说明请参考 [CUSTOM_JOYSTICK_GUIDE.md](CUSTOM_JOYSTICK_GUIDE.md)
 
 ## 技术细节
 

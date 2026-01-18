@@ -90,5 +90,51 @@
                 "gyro_range": 90.0
             }
         }
+    },
+    "joystick_type": "custom",
+    "custom_joystick": {
+        "axis_count": 5,
+        "axis_mapping": {
+            "0": {
+                "source_type": "gyro",
+                "source_id": "gamma",
+                "peak_value": 1,
+                "deadzone": 0.05,
+                "gyro_range": 90,
+                "invert": false
+            },
+            "1": {
+                "source_type": "gyro",
+                "source_id": "beta",
+                "peak_value": 1,
+                "deadzone": 0.05,
+                "gyro_range": 90,
+                "invert": false
+            },
+            "2": {
+                "source_type": "gyro",
+                "source_id": "alpha",
+                "peak_value": 1,
+                "deadzone": 0.05,
+                "gyro_range": 90,
+                "invert": false
+            },
+            "3": {
+                "source_type": "slider",
+                "source_id": "btn6",
+                "peak_value": 1,
+                "deadzone": 0.05,
+                "gyro_range": 90,
+                "invert": false
+            },
+            "4": {
+                "source_type": "slider",
+                "source_id": "btn12",
+                "peak_value": 1,
+                "deadzone": 0.05,
+                "gyro_range": 90,
+                "invert": false
+            }
+        }
     }
 }
