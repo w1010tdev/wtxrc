@@ -123,9 +123,8 @@ class CustomVirtualJoystick:
                 int_value = int((value + 1.0) * 16383.5 + 1)
                 int_value = max(1, min(32768, int_value))
                 
-                # vJoy 轴从 1 开始编号
-                axis_id = axis_index + 1
-                if axis_id <= 8:  # vJoy 支持最多 8 个轴
+                # vJoy 支持最多 8 个轴（从 X 开始顺序映射）
+                if axis_index < 8:
                     self.gamepad.set_axis(pyvjoy.HID_USAGE_X + axis_index, int_value)
             except Exception as e:
                 if config and config.DEBUG:
