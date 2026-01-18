@@ -120,9 +120,9 @@
                                 size="small"
                                 placeholder="选择陀螺仪轴"
                             >
-                                <el-option label="Gamma (左右)" value="gamma"></el-option>
-                                <el-option label="Beta (前后)" value="beta"></el-option>
-                                <el-option label="Alpha (旋转)" value="alpha"></el-option>
+                                <el-option label="Gamma (Y轴 左右)" value="gamma"></el-option>
+                                <el-option label="Beta (X轴 前后)" value="beta"></el-option>
+                                <el-option label="Alpha (Z轴 旋转)" value="alpha"></el-option>
                             </el-select>
                             <el-select 
                                 v-else-if="scope.row.source_type === 'slider'" 
@@ -190,6 +190,7 @@
                         <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
                         <li>陀螺仪范围：转动多少度达到满输出（如 90 度表示转动 90 度输出从 0 到 1）</li>
                         <li>每个拖动条只能绑定到一个轴，已绑定到其他轴的拖动条在下拉列表中会被禁用</li>
+                        <li>注意：同一个陀螺仪轴可以绑定到多个手柄轴（例如用于控制多个维度），请根据实际需求配置</li>
                     </ul>
                 </el-alert>
             </el-form>
