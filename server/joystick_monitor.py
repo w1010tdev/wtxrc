@@ -56,7 +56,7 @@ class JoystickMonitor:
     
     def start(self):
         """启动监视器窗口（在单独线程中运行）"""
-        if not self.enabled:
+        if not self.enabled or self.running:
             return
         
         self.running = True

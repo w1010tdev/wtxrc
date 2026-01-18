@@ -52,7 +52,7 @@
         {
             "id": "btn6",
             "type": "slider",
-            "label": "Slider",
+            "label": "Slider1",
             "keys": [],
             "colorIndex": 0,
             "width": 200,
@@ -61,50 +61,34 @@
             "y": 140.39999389648438,
             "orientation": "horizontal",
             "autoCenter": true,
-            "axis": "right_x",
+            "rangeMode": "bipolar",
             "currentValue": 0
         },
         {
             "id": "btn12",
             "type": "slider",
-            "label": "Slider",
+            "label": "Slider0",
             "keys": [],
             "colorIndex": 0,
             "width": 60,
             "height": 200,
-            "x": 284.40000915527344,
-            "y": 81.99996948242188,
+            "x": 282.8000030517578,
+            "y": 25.999969482421875,
             "orientation": "vertical",
-            "autoCenter": true,
-            "axis": "left_trigger",
-            "currentValue": 0
+            "autoCenter": false,
+            "rangeMode": "unipolar",
+            "currentValue": 0.5
         }
     ],
     "driving_config": {
-        "gyro_sensitivity": 1,
-        "gyro_deadzone": 2,
-        "max_steering_angle": 45,
-        "gyro_update_rate": 60,
-        "gyro_axis_mapping": {
-            "alpha": null,
-            "beta": "left_y",
-            "gamma": "left_x"
-        },
-        "sliders": [
-            {
-                "id": "btn6",
-                "label": "Slider",
-                "axis": "right_x",
-                "orientation": "horizontal",
-                "autoCenter": true
-            },
-            {
-                "id": "btn12",
-                "label": "Slider",
-                "axis": "left_trigger",
-                "orientation": "vertical",
-                "autoCenter": true
+        "axis_config": {
+            "right_trigger": {
+                "source_type": "slider",
+                "source_id": "btn6",
+                "peak_value": 1.0,
+                "deadzone": 0.05,
+                "gyro_range": 90.0
             }
-        ]
+        }
     }
 }

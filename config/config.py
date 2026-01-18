@@ -25,7 +25,7 @@ DRIVING_CONFIG = {
     "max_steering_angle": 45.0,
     # 陀螺仪数据更新频率（Hz）
     "gyro_update_rate": 60,
-    # 陀螺仪轴映射到 Xbox 手柄轴
+    # 陀螺仪轴映射到 Xbox 手柄轴（旧格式，保留用于向后兼容）
     # 可选的轴: "left_x", "left_y", "right_x", "right_y", "left_trigger", "right_trigger"
     # 可选的陀螺仪轴: "alpha" (Z轴旋转), "beta" (X轴前后倾斜), "gamma" (Y轴左右倾斜)
     "gyro_axis_mapping": {
@@ -34,7 +34,52 @@ DRIVING_CONFIG = {
         "alpha": None       # Z轴旋转不映射
     },
     # 拖动条配置列表（在前端配置后保存）
-    "sliders": []
+    "sliders": [],
+    # 统一轴配置（新格式）
+    "axis_config": {
+        "left_x": {
+            "source_type": "gyro",  # none, gyro, slider
+            "source_id": "gamma",   # 陀螺仪轴名称或拖动条ID
+            "peak_value": 1.0,      # 峰值（最大输出）
+            "deadzone": 0.05,       # 死区
+            "gyro_range": 90.0      # 陀螺仪归一化范围（度），90度表示转动90度达到满输出
+        },
+        "left_y": {
+            "source_type": "gyro",
+            "source_id": "beta",
+            "peak_value": 1.0,
+            "deadzone": 0.05,
+            "gyro_range": 90.0
+        },
+        "right_x": {
+            "source_type": "none",
+            "source_id": None,
+            "peak_value": 1.0,
+            "deadzone": 0.05,
+            "gyro_range": 90.0      # 默认90度，用户可根据需要调整
+        },
+        "right_y": {
+            "source_type": "none",
+            "source_id": None,
+            "peak_value": 1.0,
+            "deadzone": 0.05,
+            "gyro_range": 90.0
+        },
+        "left_trigger": {
+            "source_type": "none",
+            "source_id": None,
+            "peak_value": 1.0,
+            "deadzone": 0.05,
+            "gyro_range": 90.0
+        },
+        "right_trigger": {
+            "source_type": "none",
+            "source_id": None,
+            "peak_value": 1.0,
+            "deadzone": 0.05,
+            "gyro_range": 90.0
+        }
+    }
 }
 
 # 虚拟摇杆设置（驾驶模式）

@@ -56,12 +56,22 @@ const app = createApp({
             gyro_deadzone: 2.0,
             max_steering_angle: 45.0,
             gyro_update_rate: 60,
+            // 旧的陀螺仪轴映射（保留用于兼容性）
             gyro_axis_mapping: {
                 gamma: 'left_x',
                 beta: 'left_y',
                 alpha: null
             },
-            sliders: []
+            sliders: [],
+            // 新的统一轴配置
+            axis_config: {
+                left_x: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_y: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_x: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_y: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                left_trigger: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 },
+                right_trigger: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 }
+            }
         });
         
         // Canvas state
@@ -69,6 +79,9 @@ const app = createApp({
         let canvasWidth = 0;
         let canvasHeight = 0;
         let animationFrameId = null;
+        
+        // 跟踪pointer事件序列中是否碰到了操控组件
+        const pointerTouchedControl = new Map();
         
         // 编辑对话态
         const showEditDialog = ref(false);
@@ -86,7 +99,8 @@ const app = createApp({
             // 拖动条特有属性
             orientation: 'horizontal',  // 'horizontal' 或 'vertical'
             autoCenter: true,  // 是否自动归中
-            axis: 'right_x'  // 绑定的xbox轴
+            axis: 'right_x',  // 绑定的xbox轴
+            rangeMode: 'bipolar'  // 'bipolar' ([-1, 1]) 或 'unipolar' ([0, 1])
         });
         const selectedModifiers = ref([]); // 支持多个修饰键
         const selectedSpecialKey = ref('');
@@ -105,6 +119,64 @@ const app = createApp({
             }
             return '500px';
         });
+        
+        // 获取可用于特定轴的滑块列表（排除已绑定到其他轴的滑块）
+        const getAvailableSlidersForAxis = (currentAxis) => {
+            const sliders = buttonsData.value.filter(b => b.type === 'slider');
+            const currentSourceId = drivingConfig.axis_config[currentAxis]?.source_id;
+            
+            return sliders.map(slider => {
+                // 检查此滑块是否已绑定到其他轴
+                const boundToOtherAxis = Object.entries(drivingConfig.axis_config || {}).some(
+                    ([axis, cfg]) => axis !== currentAxis && cfg.source_type === 'slider' && cfg.source_id === slider.id
+                );
+                
+                return {
+                    id: slider.id,
+                    label: slider.label,
+                    isBound: boundToOtherAxis,
+                    displayLabel: boundToOtherAxis ? `${slider.label} [已绑定到其他轴]` : slider.label,
+                    disabled: boundToOtherAxis
+                };
+            });
+        };
+        
+        // 轴配置列表（用于表格显示）
+        const axisConfigList = computed(() => {
+            const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+            return axes.map(axisName => {
+                // 直接返回 drivingConfig.axis_config[axisName] 的引用
+                // 这样在表格中修改 scope.row 的属性会直接反映到 drivingConfig 中
+                const cfg = drivingConfig.axis_config[axisName];
+                cfg.axis = axisName; // 确保包含 axis 属性供前端显示逻辑使用
+                return cfg;
+            });
+        });
+        
+        // 获取轴的显示名称
+        const getAxisDisplayName = (axis) => {
+            const names = {
+                'left_x': '左摇杆 X',
+                'left_y': '左摇杆 Y',
+                'right_x': '右摇杆 X',
+                'right_y': '右摇杆 Y',
+                'left_trigger': '左扳机',
+                'right_trigger': '右扳机'
+            };
+            return names[axis] || axis;
+        };
+        
+        // 当轴的源类型改变时
+        const onAxisSourceTypeChange = (axisConfig) => {
+            if (axisConfig.source_type === 'none') {
+                axisConfig.source_id = null;
+            }
+        };
+        
+        // Helper function to get default value based on range mode
+        const getSliderDefaultValue = (rangeMode) => {
+            return rangeMode === 'unipolar' ? 0.5 : 0.0;
+        };
         
         // Track active buttons (currently pressed) - supports multiple simultaneous presses
         const activeButtonsMap = reactive({});
@@ -128,16 +200,84 @@ const app = createApp({
                 modifierKeys.value = data.modifier_keys || ['ctrl', 'shift', 'alt', 'cmd', 'win'];
                 specialKeys.value = data.special_keys || [];
                 
+                // 清理旧的 axis 属性从所有滑块中
+                buttonsData.value.forEach(btn => {
+                    if (btn.type === 'slider' && btn.hasOwnProperty('axis')) {
+                        delete btn.axis;
+                    }
+                });
+                
                 // 加载驾驶模式配置
                 if (data.driving_config) {
                     Object.assign(drivingConfig, data.driving_config);
                     slidersData.value = drivingConfig.sliders || [];
+                    
+                    // 如果没有新的轴配置，从旧的gyro_axis_mapping和slider配置迁移
+                    if (!drivingConfig.axis_config || Object.keys(drivingConfig.axis_config).length === 0) {
+                        migrateToUnifiedAxisConfig();
+                    } else {
+                        // 确保所有轴都有配置
+                        const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+                        axes.forEach(axis => {
+                            if (!drivingConfig.axis_config[axis]) {
+                                drivingConfig.axis_config[axis] = {
+                                    source_type: 'none',
+                                    source_id: null,
+                                    peak_value: 1.0,
+                                    deadzone: 0.05,
+                                    gyro_range: 90.0
+                                };
+                            } else if (drivingConfig.axis_config[axis].gyro_range === undefined) {
+                                // 为已存在的配置添加 gyro_range 字段
+                                drivingConfig.axis_config[axis].gyro_range = 90.0;
+                            }
+                        });
+                    }
                 }
                 
                 markDirty();
             } catch (error) {
                 console.error('加载配置失败：', error);
             }
+        };
+        
+        // 从旧配置迁移到新的统一轴配置
+        const migrateToUnifiedAxisConfig = () => {
+            console.log('[迁移] 从旧配置迁移到统一轴配置');
+            
+            // 初始化轴配置
+            const axes = ['left_x', 'left_y', 'right_x', 'right_y', 'left_trigger', 'right_trigger'];
+            axes.forEach(axis => {
+                drivingConfig.axis_config[axis] = {
+                    source_type: 'none',
+                    source_id: null,
+                    peak_value: 1.0,
+                    deadzone: 0.05,
+                    gyro_range: 90.0
+                };
+            });
+            
+            // 从旧的 gyro_axis_mapping 迁移
+            if (drivingConfig.gyro_axis_mapping) {
+                Object.entries(drivingConfig.gyro_axis_mapping).forEach(([gyroAxis, gamepadAxis]) => {
+                    if (gamepadAxis && drivingConfig.axis_config[gamepadAxis]) {
+                        drivingConfig.axis_config[gamepadAxis].source_type = 'gyro';
+                        drivingConfig.axis_config[gamepadAxis].source_id = gyroAxis;
+                    }
+                });
+            }
+            
+            // 从旧的 sliders 配置迁移
+            if (drivingConfig.sliders && drivingConfig.sliders.length > 0) {
+                drivingConfig.sliders.forEach(slider => {
+                    if (slider.axis && drivingConfig.axis_config[slider.axis]) {
+                        drivingConfig.axis_config[slider.axis].source_type = 'slider';
+                        drivingConfig.axis_config[slider.axis].source_id = slider.id;
+                    }
+                });
+            }
+            
+            console.log('[迁移] 迁移完成', drivingConfig.axis_config);
         };
         
         // Canvas rendering
@@ -281,10 +421,11 @@ const app = createApp({
             const colorIndex = slider.colorIndex !== undefined ? slider.colorIndex : 0;
             const color = BUTTON_COLORS[colorIndex % BUTTON_COLORS.length].color;
             
-            // \u83b7\u53d6\u5f53\u524d\u503c\uff08-1.0 \u5230 1.0\uff09
-            const sliderValue = slider.currentValue !== undefined ? slider.currentValue : 0.0;
+            // 获取当前值和范围模式
+            const rangeMode = slider.rangeMode || 'bipolar';  // 'bipolar' ([-1, 1]) 或 'unipolar' ([0, 1])
+            const sliderValue = slider.currentValue !== undefined ? slider.currentValue : getSliderDefaultValue(rangeMode);
             
-            // \u7ed8\u5236\u80cc\u666f\u8f68\u9053
+            // 绘制背景轨道
             ctx.fillStyle = 'rgba(0,0,0,0.1)';
             ctx.strokeStyle = isEditing.value ? '#409eff' : 'rgba(0,0,0,0.2)';
             ctx.lineWidth = isEditing.value ? 2 : 1;
@@ -309,30 +450,52 @@ const app = createApp({
             ctx.stroke();
             ctx.setLineDash([]);
             
-            // \u7ed8\u5236\u6ed1\u5757
+            // 绘制滑块
             const knobSize = slider.orientation === 'horizontal' ? slider.height * 0.8 : slider.width * 0.8;
             let knobX, knobY;
             
             if (slider.orientation === 'horizontal') {
-                // \u6a2a\u5411\u62d6\u52a8\u6761
+                // 横向拖动条
                 const centerY = slider.y + slider.height / 2;
                 const rangeX = slider.width - knobSize;
-                knobX = slider.x + knobSize / 2 + (sliderValue + 1.0) / 2.0 * rangeX;
+                
+                // 根据范围模式计算位置
+                let normalizedPos;
+                if (rangeMode === 'unipolar') {
+                    // unipolar: sliderValue 范围 [0, 1]，左侧为 0，右侧为 1
+                    normalizedPos = sliderValue;
+                } else {
+                    // bipolar: sliderValue 范围 [-1, 1]，左侧为 -1，中心为 0，右侧为 1
+                    normalizedPos = (sliderValue + 1.0) / 2.0;
+                }
+                
+                knobX = slider.x + knobSize / 2 + normalizedPos * rangeX;
                 knobY = centerY;
                 
-                // \u7ed8\u5236\u6ed1\u5757
+                // 绘制滑块
                 ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.arc(knobX, knobY, knobSize / 2, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                // \u7ad6\u5411\u62d6\u52a8\u6761
+                // 竖向拖动条
                 const centerX = slider.x + slider.width / 2;
                 const rangeY = slider.height - knobSize;
-                knobX = centerX;
-                knobY = slider.y + knobSize / 2 + (1.0 - sliderValue) / 2.0 * rangeY;  // \u7ad6\u5411\u65f6\u4e0a\u4e3a\u6b63
                 
-                // \u7ed8\u5236\u6ed1\u5757
+                // 根据范围模式计算位置
+                let normalizedPos;
+                if (rangeMode === 'unipolar') {
+                    // unipolar: sliderValue 范围 [0, 1]，底部为 0，顶部为 1
+                    normalizedPos = 1.0 - sliderValue;
+                } else {
+                    // bipolar: sliderValue 范围 [-1, 1]，底部为 -1，中心为 0，顶部为 1
+                    normalizedPos = (1.0 - sliderValue) / 2.0;
+                }
+                
+                knobX = centerX;
+                knobY = slider.y + knobSize / 2 + normalizedPos * rangeY;
+                
+                // 绘制滑块
                 ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.arc(knobX, knobY, knobSize / 2, 0, Math.PI * 2);
@@ -424,10 +587,12 @@ const app = createApp({
             if (!btn) return;
             
             if (btn.type === 'slider') {
-                // \u62d6\u52a8\u6761\u91ca\u653e\u540e\u5982\u679c\u8bbe\u7f6e\u4e86\u81ea\u52a8\u5f52\u4e2d\uff0c\u5219\u91cd\u7f6e\u503c
+                // 拖动条释放后如果设置了自动归中，则重置值
                 if (btn.autoCenter) {
-                    btn.currentValue = 0.0;
-                    socket.emit('slider_value', { id: btn.id, value: 0.0 });
+                    const rangeMode = btn.rangeMode || 'bipolar';
+                    const defaultValue = getSliderDefaultValue(rangeMode);
+                    btn.currentValue = defaultValue;
+                    socket.emit('slider_value', { id: btn.id, value: defaultValue });
                     markDirty();
                 }
                 return;
@@ -437,26 +602,48 @@ const app = createApp({
             socket.emit('button_up', { id: btn.id });
         };
         
-        // \u5904\u7406\u62d6\u52a8\u6761\u503c\u66f4\u65b0
+        // 处理拖动条值更新
         const handleSliderMove = (slider, canvasX, canvasY) => {
             const knobSize = slider.orientation === 'horizontal' ? slider.height * 0.8 : slider.width * 0.8;
+            const rangeMode = slider.rangeMode || 'bipolar';  // 'bipolar' ([-1, 1]) 或 'unipolar' ([0, 1])
             let value;
             
             if (slider.orientation === 'horizontal') {
                 const rangeX = slider.width - knobSize;
                 const relativeX = canvasX - slider.x - knobSize / 2;
-                value = (relativeX / rangeX) * 2.0 - 1.0;
+                const normalizedPos = relativeX / rangeX;
+                
+                if (rangeMode === 'unipolar') {
+                    // unipolar: 从左到右为 0 到 1
+                    value = normalizedPos;
+                } else {
+                    // bipolar: 从左到右为 -1 到 1
+                    value = normalizedPos * 2.0 - 1.0;
+                }
             } else {
                 const rangeY = slider.height - knobSize;
                 const relativeY = canvasY - slider.y - knobSize / 2;
-                value = 1.0 - (relativeY / rangeY) * 2.0;  // \u7ad6\u5411\u65f6\u4e0a\u4e3a\u6b63
+                const normalizedPos = relativeY / rangeY;
+                
+                if (rangeMode === 'unipolar') {
+                    // unipolar: 从下到上为 0 到 1
+                    value = 1.0 - normalizedPos;
+                } else {
+                    // bipolar: 从下到上为 -1 到 1
+                    value = 1.0 - normalizedPos * 2.0;
+                }
             }
             
-            // \u9650\u5236\u503c\u5728 -1.0 \u5230 1.0 \u4e4b\u95f4
-            value = Math.max(-1.0, Math.min(1.0, value));
+            // 根据范围模式限制值
+            if (rangeMode === 'unipolar') {
+                value = Math.max(0.0, Math.min(1.0, value));
+            } else {
+                value = Math.max(-1.0, Math.min(1.0, value));
+            }
+            
             slider.currentValue = value;
             
-            // \u53d1\u9001\u5230\u540e\u7aef
+            // 发送到后端
             socket.emit('slider_value', { id: slider.id, value: value });
             markDirty();
         };
@@ -480,6 +667,9 @@ const app = createApp({
             
             const { x, y } = pageToCanvas(e.clientX, e.clientY);
             const hit = getButtonAtPoint(x, y);
+            
+            // 初始化pointer跟踪：记录是否碰到了操控组件
+            pointerTouchedControl.set(e.pointerId, hit !== null);
             
             if (isEditing.value) {
                 if (!hit) return;
@@ -523,6 +713,14 @@ const app = createApp({
         const onCanvasPointerMove = (e) => {
             e.preventDefault();
             const { x, y } = pageToCanvas(e.clientX, e.clientY);
+            
+            // 如果在这个pointer序列中还没有碰到操控组件，检查当前是否碰到了
+            if (!pointerTouchedControl.get(e.pointerId)) {
+                const hit = getButtonAtPoint(x, y);
+                if (hit) {
+                    pointerTouchedControl.set(e.pointerId, true);
+                }
+            }
             
             if (isEditing.value && dragState) {
                 const btn = buttonsData.value[dragState.buttonIndex];
@@ -582,6 +780,16 @@ const app = createApp({
                     handleButtonRelease(btnId);
                     pointerToButton.delete(e.pointerId);
                 }
+                
+                // 检查整个pointer序列是否没有碰到操控组件
+                const touchedControl = pointerTouchedControl.get(e.pointerId);
+                if (!touchedControl) {
+                    // 如果没有碰到操控组件，发送隐藏overlay的命令
+                    socket.emit('hide_overlay');
+                }
+                
+                // 清理跟踪状态
+                pointerTouchedControl.delete(e.pointerId);
             }
         };
         
@@ -629,7 +837,7 @@ const app = createApp({
                 y: btn.y,
                 orientation: btn.orientation || 'horizontal',
                 autoCenter: btn.autoCenter !== undefined ? btn.autoCenter : true,
-                axis: btn.axis || 'right_x'
+                rangeMode: btn.rangeMode || 'bipolar'  // 向后兼容：旧的拖动条默认为bipolar
             });
             showEditDialog.value = true;
         };
@@ -666,7 +874,8 @@ const app = createApp({
                 orientation: 'horizontal',
                 autoCenter: true,
                 axis: 'right_x',
-                currentValue: 0.0
+                rangeMode: 'unipolar',  // 新拖动条默认为 unipolar 模式（居中=0.5）
+                currentValue: getSliderDefaultValue('unipolar')
             });
             showEditDialog.value = true;
         };
@@ -716,12 +925,13 @@ const app = createApp({
                 y: editingButton.y
             };
             
-            // \u5982\u679c\u662f\u62d6\u52a8\u6761\uff0c\u6dfb\u52a0\u62d6\u52a8\u6761\u7279\u6709\u5c5e\u6027
+            // 如果是拖动条，添加拖动条特有属性
             if (editingButton.type === 'slider') {
                 buttonData.orientation = editingButton.orientation;
                 buttonData.autoCenter = editingButton.autoCenter;
-                buttonData.axis = editingButton.axis;
-                buttonData.currentValue = editingButton.currentValue || 0.0;
+                buttonData.rangeMode = editingButton.rangeMode || 'bipolar';
+                buttonData.currentValue = editingButton.currentValue !== undefined ? editingButton.currentValue : getSliderDefaultValue(buttonData.rangeMode);
+                // 不再保存 axis 属性，因为轴绑定现在在驾驶配置中统一管理
             }
             
             try {
@@ -750,11 +960,6 @@ const app = createApp({
                     buttonsData.value.push(buttonData);
                 }
                 
-                // \u5982\u679c\u662f\u9a7e\u9a76\u6a21\u5f0f\u4e14\u662f\u62d6\u52a8\u6761\uff0c\u66f4\u65b0\u9a7e\u9a76\u914d\u7f6e
-                if (mode.value === 'driving' && editingButton.type === 'slider') {
-                    await saveDrivingConfig();
-                }
-                
                 markDirty();
                 showEditDialog.value = false;
             } catch (error) {
@@ -765,29 +970,53 @@ const app = createApp({
         
         const saveDrivingConfig = async () => {
             try {
-                // \u4ece buttonsData \u4e2d\u63d0\u53d6\u6240\u6709\u62d6\u52a8\u6761
-                const sliders = buttonsData.value
-                    .filter(b => b.type === 'slider')
-                    .map(s => ({
-                        id: s.id,
-                        label: s.label,
-                        axis: s.axis,
-                        orientation: s.orientation,
-                        autoCenter: s.autoCenter
-                    }));
+                console.log('开始保存驾驶配置...');
+                console.log('当前drivingConfig:', drivingConfig);
+                // 更新旧的 gyro_axis_mapping 和 sliders（保持向后兼容）
+                const newGyroMapping = { gamma: null, beta: null, alpha: null };
+                const newSliders = [];
                 
-                drivingConfig.sliders = sliders;
+                // 从统一轴配置中反向生成旧格式
+                Object.entries(drivingConfig.axis_config).forEach(([axis, config]) => {
+                    if (config.source_type === 'gyro' && config.source_id) {
+                        newGyroMapping[config.source_id] = axis;
+                    } else if (config.source_type === 'slider' && config.source_id) {
+                        const sliderBtn = buttonsData.value.find(b => b.id === config.source_id && b.type === 'slider');
+                        if (sliderBtn) {
+                            newSliders.push({
+                                id: sliderBtn.id,
+                                label: sliderBtn.label,
+                                axis: axis,
+                                orientation: sliderBtn.orientation,
+                                autoCenter: sliderBtn.autoCenter
+                            });
+                        }
+                    }
+                });
                 
-                await fetch('/api/update_driving_config', {
+                drivingConfig.gyro_axis_mapping = newGyroMapping;
+                drivingConfig.sliders = newSliders;
+                
+                console.log('准备发送请求，数据:', { driving_config: drivingConfig });
+                const response = await fetch('/api/update_driving_config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ driving_config: drivingConfig })
                 });
                 
+                console.log('收到响应:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('保存驾驶配置响应:', result);
+                
                 showMessage.success('驾驶配置已保存，请重启服务器以应用更改');
             } catch (error) {
                 console.error('保存驾驶配置失败：', error);
-                showMessage.error('保存驾驶配置失败');
+                showMessage.error('保存驾驶配置失败: ' + error.message);
             }
         };
         
@@ -947,6 +1176,10 @@ const app = createApp({
             dialogWidth,
             activeButtonsMap,
             BUTTON_COLORS,
+            axisConfigList,
+            getAxisDisplayName,
+            getAvailableSlidersForAxis,
+            onAxisSourceTypeChange,
             toggleEditMode,
             saveLayout,
             editButton,

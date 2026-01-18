@@ -85,48 +85,114 @@
         <!-- 驾驶模式配置对话框 -->
         <el-dialog
             v-model="showDrivingConfigDialog"
-            title="驾驶模式配置"
-            :width="dialogWidth"
+            title="驾驶设置 - 统一轴映射配置"
+            :width="'90%'"
             :close-on-click-modal="false"
+            style="max-width: 900px;"
         >
             <el-form :model="drivingConfig" label-position="top">
-                <el-divider content-position="left">陀螺仪轴映射</el-divider>
+                <el-divider content-position="left">Xbox 手柄轴配置</el-divider>
                 <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
-                    配置陀螺仪的每个轴如何映射到 Xbox 手柄轴
+                    为每个 Xbox 手柄轴配置输入源（陀螺仪或拖动条）、峰值和死区
                 </p>
                 
-                <el-form-item label="Gamma（左右倾斜）映射到">
-                    <el-select v-model="drivingConfig.gyro_axis_mapping.gamma" placeholder="选择手柄轴" clearable>
-                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
-                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
-                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
-                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
-                        <el-option label="左扳机" value="left_trigger"></el-option>
-                        <el-option label="右扳机" value="right_trigger"></el-option>
-                    </el-select>
-                </el-form-item>
+                <!-- 轴配置表格 -->
+                <el-table :data="axisConfigList" border style="width: 100%; margin-bottom: 20px;">
+                    <el-table-column prop="axis" label="手柄轴" width="120">
+                        <template #default="scope">
+                            <strong>{{ getAxisDisplayName(scope.row.axis) }}</strong>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="输入源" width="160">
+                        <template #default="scope">
+                            <el-select v-model="scope.row.source_type" size="small" @change="onAxisSourceTypeChange(scope.row)">
+                                <el-option label="未绑定" value="none"></el-option>
+                                <el-option label="陀螺仪" value="gyro"></el-option>
+                                <el-option label="拖动条" value="slider"></el-option>
+                            </el-select>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="源选择" width="150">
+                        <template #default="scope">
+                            <el-select 
+                                v-if="scope.row.source_type === 'gyro'" 
+                                v-model="scope.row.source_id" 
+                                size="small"
+                                placeholder="选择陀螺仪轴"
+                            >
+                                <el-option label="Gamma (Y轴 左右)" value="gamma"></el-option>
+                                <el-option label="Beta (X轴 前后)" value="beta"></el-option>
+                                <el-option label="Alpha (Z轴 旋转)" value="alpha"></el-option>
+                            </el-select>
+                            <el-select 
+                                v-else-if="scope.row.source_type === 'slider'" 
+                                v-model="scope.row.source_id" 
+                                size="small"
+                                placeholder="选择拖动条"
+                            >
+                                <el-option 
+                                    v-for="slider in getAvailableSlidersForAxis(scope.row.axis)" 
+                                    :key="slider.id" 
+                                    :label="slider.displayLabel" 
+                                    :value="slider.id"
+                                    :disabled="slider.disabled"
+                                ></el-option>
+                            </el-select>
+                            <span v-else style="color: var(--el-color-info); font-size: 12px;">-</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="峰值" width="100">
+                        <template #default="scope">
+                            <el-input-number 
+                                v-model="scope.row.peak_value" 
+                                :min="0.1" 
+                                :max="1" 
+                                :step="0.1" 
+                                size="small"
+                                :disabled="scope.row.source_type === 'none'"
+                            ></el-input-number>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="死区" width="100">
+                        <template #default="scope">
+                            <el-input-number 
+                                v-model="scope.row.deadzone" 
+                                :min="0" 
+                                :max="0.5" 
+                                :step="0.05" 
+                                size="small"
+                                :disabled="scope.row.source_type === 'none'"
+                            ></el-input-number>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="陀螺仪范围" width="130">
+                        <template #default="scope">
+                            <el-input-number 
+                                v-model="scope.row.gyro_range" 
+                                :min="1" 
+                                :max="180" 
+                                :step="1" 
+                                size="small"
+                                :disabled="scope.row.source_type !== 'gyro'"
+                            ></el-input-number>
+                        </template>
+                    </el-table-column>
+                </el-table>
                 
-                <el-form-item label="Beta（前后倾斜）映射到">
-                    <el-select v-model="drivingConfig.gyro_axis_mapping.beta" placeholder="选择手柄轴" clearable>
-                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
-                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
-                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
-                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
-                        <el-option label="左扳机" value="left_trigger"></el-option>
-                        <el-option label="右扳机" value="right_trigger"></el-option>
-                    </el-select>
-                </el-form-item>
-                
-                <el-form-item label="Alpha（Z轴旋转）映射到">
-                    <el-select v-model="drivingConfig.gyro_axis_mapping.alpha" placeholder="选择手柄轴" clearable>
-                        <el-option label="左摇杆 X 轴" value="left_x"></el-option>
-                        <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
-                        <el-option label="右摇杆 X 轴" value="right_x"></el-option>
-                        <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
-                        <el-option label="左扳机" value="left_trigger"></el-option>
-                        <el-option label="右扳机" value="right_trigger"></el-option>
-                    </el-select>
-                </el-form-item>
+                <el-alert 
+                    title="提示" 
+                    type="info" 
+                    :closable="false"
+                    style="margin-top: 10px;"
+                >
+                    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+                        <li>峰值：轴的最大输出值（1.0 = 100%）</li>
+                        <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
+                        <li>陀螺仪范围：转动多少度达到满输出（如 90 度表示转动 90 度输出从 0 到 1）</li>
+                        <li>每个拖动条只能绑定到一个轴，已绑定到其他轴的拖动条在下拉列表中会被禁用</li>
+                        <li>注意：同一个陀螺仪轴可以绑定到多个手柄轴（例如用于控制多个维度），请根据实际需求配置</li>
+                    </ul>
+                </el-alert>
             </el-form>
             <template #footer>
                 <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -164,21 +230,27 @@
                         </el-radio-group>
                     </el-form-item>
                     
-                    <el-form-item label="绑定到 Xbox 轴">
-                        <el-select v-model="editingButton.axis" placeholder="选择手柄轴">
-                            <el-option label="左摇杆 X 轴" value="left_x"></el-option>
-                            <el-option label="左摇杆 Y 轴" value="left_y"></el-option>
-                            <el-option label="右摇杆 X 轴" value="right_x"></el-option>
-                            <el-option label="右摇杆 Y 轴" value="right_y"></el-option>
-                            <el-option label="左扳机" value="left_trigger"></el-option>
-                            <el-option label="右扳机" value="right_trigger"></el-option>
-                        </el-select>
+                    <el-form-item label="值域模式">
+                        <el-radio-group v-model="editingButton.rangeMode">
+                            <el-radio-button label="unipolar">单极 (0 到 1)</el-radio-button>
+                            <el-radio-button label="bipolar">双极 (-1 到 1)</el-radio-button>
+                        </el-radio-group>
+                        <p class="key-hint">单极模式：居中时为 0.5，底部为 0，顶部为 1</p>
+                        <p class="key-hint">双极模式：居中时为 0，底部为 -1，顶部为 1</p>
                     </el-form-item>
                     
                     <el-form-item label="自动归中">
                         <el-switch v-model="editingButton.autoCenter"></el-switch>
                         <p class="key-hint">释放拖动条后是否自动回到中间位置</p>
                     </el-form-item>
+                    
+                    <el-alert 
+                        title="轴绑定配置" 
+                        type="info" 
+                        :closable="false"
+                        description="拖动条的轴绑定现在统一在【驾驶配置】中设置。请点击顶部的【⚙️ 驾驶配置】按钮进行配置。"
+                        style="margin-top: 10px;"
+                    ></el-alert>
                 </template>
                 
                 <!-- 按钮特有配置 -->
