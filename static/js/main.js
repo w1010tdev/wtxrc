@@ -1,4 +1,13 @@
-const { createApp, ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const {
+    createApp,
+    ref,
+    reactive,
+    computed,
+    onMounted,
+    onUnmounted,
+    nextTick,
+    watch
+} = Vue;
 
 // Constants
 const MIN_BUTTON_SIZE = 50;
@@ -73,6 +82,32 @@ const app = createApp({
                 right_trigger: { source_type: 'none', source_id: null, peak_value: 1.0, deadzone: 0.05, gyro_range: 90.0 }
             }
         });
+        
+        // 摇杆类型和自定义摇杆配置
+        const joystickType = ref('xbox360');  // 'xbox360' 或 'custom'
+        const customJoystickAxisCount = ref(8);  // 自定义摇杆的轴数量
+        const customAxisMapping = reactive({});  // 自定义摇杆的轴映射
+        
+        // 初始化自定义摇杆轴映射（确保所有轴都有配置）
+        const initializeCustomAxisMapping = () => {
+            for (let i = 0; i < customJoystickAxisCount.value; i++) {
+                if (!customAxisMapping[i]) {
+                    customAxisMapping[i] = {
+                        source_type: 'none',
+                        source_id: null,
+                        peak_value: 1.0,
+                        deadzone: 0.05,
+                        gyro_range: 90.0,
+                        invert: false
+                    };
+                }
+            }
+        };
+        
+        // 监听轴数量变化，自动初始化新的轴配置
+        watch(customJoystickAxisCount, () => {
+            initializeCustomAxisMapping();
+        }, { immediate: true });
         
         // Canvas state
         let ctx = null;
@@ -153,6 +188,20 @@ const app = createApp({
             });
         });
         
+        // 自定义摇杆轴配置列表
+        const customAxisConfigList = computed(() => {
+            const list = [];
+            for (let i = 0; i < customJoystickAxisCount.value; i++) {
+                const cfg = customAxisMapping[i];
+                if (cfg) {
+                    // 直接使用原始配置对象，并附加 axisIndex，保证表格编辑能同步回 customAxisMapping
+                    cfg.axisIndex = i;
+                    list.push(cfg);
+                }
+            }
+            return list;
+        });
+        
         // 获取轴的显示名称
         const getAxisDisplayName = (axis) => {
             const names = {
@@ -171,6 +220,42 @@ const app = createApp({
             if (axisConfig.source_type === 'none') {
                 axisConfig.source_id = null;
             }
+        };
+        
+        // 当自定义轴的源类型改变时
+        const onCustomAxisSourceTypeChange = (axisConfig) => {
+            if (axisConfig.source_type === 'none') {
+                axisConfig.source_id = null;
+            }
+        };
+        
+        // 当摇杆类型改变时
+        const onJoystickTypeChange = () => {
+            console.log('摇杆类型改变为:', joystickType.value);
+        };
+        
+        // 当自定义摇杆轴数量改变时
+        const onCustomAxisCountChange = () => {
+            console.log('自定义摇杆轴数量改变为:', customJoystickAxisCount.value);
+        };
+        
+        // 获取自定义轴可用的拖动条（排除已被其他轴绑定的拖动条）
+        const getAvailableSlidersForCustomAxis = (currentAxisIndex) => {
+            const sliders = buttonsData.value.filter(b => b.type === 'slider');
+            
+            // 找出已被其他轴绑定的拖动条
+            const boundSliders = new Set();
+            for (let i = 0; i < customJoystickAxisCount.value; i++) {
+                if (i !== currentAxisIndex && customAxisMapping[i]?.source_type === 'slider') {
+                    boundSliders.add(customAxisMapping[i].source_id);
+                }
+            }
+            
+            return sliders.map(slider => ({
+                id: slider.id,
+                displayLabel: slider.label || slider.id,
+                disabled: boundSliders.has(slider.id)
+            }));
         };
         
         // Helper function to get default value based on range mode
@@ -206,6 +291,20 @@ const app = createApp({
                         delete btn.axis;
                     }
                 });
+                
+                // 加载摇杆类型和自定义摇杆配置
+                if (data.joystick_type) {
+                    joystickType.value = data.joystick_type;
+                }
+                
+                if (data.custom_joystick) {
+                    customJoystickAxisCount.value = data.custom_joystick.axis_count || 8;
+                    if (data.custom_joystick.axis_mapping) {
+                        Object.assign(customAxisMapping, data.custom_joystick.axis_mapping);
+                    }
+                    // 初始化任何缺失的轴配置
+                    initializeCustomAxisMapping();
+                }
                 
                 // 加载驾驶模式配置
                 if (data.driving_config) {
@@ -972,36 +1071,68 @@ const app = createApp({
             try {
                 console.log('开始保存驾驶配置...');
                 console.log('当前drivingConfig:', drivingConfig);
-                // 更新旧的 gyro_axis_mapping 和 sliders（保持向后兼容）
-                const newGyroMapping = { gamma: null, beta: null, alpha: null };
-                const newSliders = [];
+                console.log('摇杆类型:', joystickType.value);
                 
-                // 从统一轴配置中反向生成旧格式
-                Object.entries(drivingConfig.axis_config).forEach(([axis, config]) => {
-                    if (config.source_type === 'gyro' && config.source_id) {
-                        newGyroMapping[config.source_id] = axis;
-                    } else if (config.source_type === 'slider' && config.source_id) {
-                        const sliderBtn = buttonsData.value.find(b => b.id === config.source_id && b.type === 'slider');
-                        if (sliderBtn) {
-                            newSliders.push({
-                                id: sliderBtn.id,
-                                label: sliderBtn.label,
-                                axis: axis,
-                                orientation: sliderBtn.orientation,
-                                autoCenter: sliderBtn.autoCenter
-                            });
+                // 准备要保存的配置数据
+                const configToSave = {
+                    joystick_type: joystickType.value
+                };
+                
+                if (joystickType.value === 'custom') {
+                    // 自定义摇杆模式：保存自定义轴映射
+                    configToSave.custom_joystick = {
+                        axis_count: customJoystickAxisCount.value,
+                        axis_mapping: {}
+                    };
+                    
+                    // 转换 customAxisMapping 为普通对象（因为可能是 reactive）
+                    for (let i = 0; i < customJoystickAxisCount.value; i++) {
+                        if (customAxisMapping[i]) {
+                            configToSave.custom_joystick.axis_mapping[i] = {
+                                source_type: customAxisMapping[i].source_type,
+                                source_id: customAxisMapping[i].source_id,
+                                peak_value: customAxisMapping[i].peak_value,
+                                deadzone: customAxisMapping[i].deadzone,
+                                gyro_range: customAxisMapping[i].gyro_range,
+                                invert: customAxisMapping[i].invert || false
+                            };
                         }
                     }
-                });
+                } else {
+                    // Xbox 360 模式：保存原有的轴配置
+                    // 更新旧的 gyro_axis_mapping 和 sliders（保持向后兼容）
+                    const newGyroMapping = { gamma: null, beta: null, alpha: null };
+                    const newSliders = [];
+                    
+                    // 从统一轴配置中反向生成旧格式
+                    Object.entries(drivingConfig.axis_config).forEach(([axis, config]) => {
+                        if (config.source_type === 'gyro' && config.source_id) {
+                            newGyroMapping[config.source_id] = axis;
+                        } else if (config.source_type === 'slider' && config.source_id) {
+                            const sliderBtn = buttonsData.value.find(b => b.id === config.source_id && b.type === 'slider');
+                            if (sliderBtn) {
+                                newSliders.push({
+                                    id: sliderBtn.id,
+                                    label: sliderBtn.label,
+                                    axis: axis,
+                                    orientation: sliderBtn.orientation,
+                                    autoCenter: sliderBtn.autoCenter
+                                });
+                            }
+                        }
+                    });
+                    
+                    drivingConfig.gyro_axis_mapping = newGyroMapping;
+                    drivingConfig.sliders = newSliders;
+                    
+                    configToSave.driving_config = drivingConfig;
+                }
                 
-                drivingConfig.gyro_axis_mapping = newGyroMapping;
-                drivingConfig.sliders = newSliders;
-                
-                console.log('准备发送请求，数据:', { driving_config: drivingConfig });
+                console.log('准备发送请求，数据:', configToSave);
                 const response = await fetch('/api/update_driving_config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ driving_config: drivingConfig })
+                    body: JSON.stringify(configToSave)
                 });
                 
                 console.log('收到响应:', response.status, response.statusText);
@@ -1177,9 +1308,16 @@ const app = createApp({
             activeButtonsMap,
             BUTTON_COLORS,
             axisConfigList,
+            customAxisConfigList,
+            joystickType,
+            customJoystickAxisCount,
             getAxisDisplayName,
             getAvailableSlidersForAxis,
+            getAvailableSlidersForCustomAxis,
             onAxisSourceTypeChange,
+            onCustomAxisSourceTypeChange,
+            onJoystickTypeChange,
+            onCustomAxisCountChange,
             toggleEditMode,
             saveLayout,
             editButton,

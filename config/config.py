@@ -9,7 +9,7 @@ MODE = "driving"
 
 # 调试选项
 DEBUG = True  # 是否输出详细日志
-SHOW_JOYSTICK_MONITOR = True  # 是否显示虚拟手柄监视器悬浮窗
+SHOW_JOYSTICK_MONITOR = False  # 是否显示虚拟手柄监视器悬浮窗
 
 # 服务器配置
 SERVER_HOST = "0.0.0.0"
@@ -86,11 +86,61 @@ DRIVING_CONFIG = {
 
 # Joystick Settings (for driving mode)
 JOYSTICK_CONFIG = {
+    # 摇杆类型: "xbox360" 或 "custom"
+    # xbox360: 使用 Xbox 360 控制器（6轴：left_x, left_y, right_x, right_y, left_trigger, right_trigger）
+    # custom: 使用自定义多轴摇杆（可配置轴数量，适用于飞行模拟等场景）
+    "type": "xbox360",  # "xbox360" or "custom"
+    
     # Virtual joystick name
     "name": "wtxrc 虚拟摇杆", 
+    
     # Axis range
     "axis_min": -32767,
     "axis_max": 32767,
+    
+    # 自定义摇杆配置（仅在 type="custom" 时使用）
+    "custom": {
+        # 轴的数量（1-32）
+        "axis_count": 8,
+        
+        # 轴映射配置：将 gyro/slider 映射到自定义摇杆的轴
+        # 键是轴索引（0-based），值是源配置
+        "axis_mapping": {
+            # 示例：
+            # 0: {
+            #     "source_type": "gyro",  # "none", "gyro", "slider"
+            #     "source_id": "gamma",   # 陀螺仪轴名称或拖动条ID
+            #     "peak_value": 1.0,      # 峰值（最大输出）
+            #     "deadzone": 0.05,       # 死区
+            #     "gyro_range": 90.0,     # 陀螺仪归一化范围（度）
+            #     "invert": False         # 是否反转轴
+            # },
+            0: {
+                "source_type": "gyro",
+                "source_id": "gamma",
+                "peak_value": 1.0,
+                "deadzone": 0.05,
+                "gyro_range": 90.0,
+                "invert": False
+            },
+            1: {
+                "source_type": "gyro",
+                "source_id": "beta",
+                "peak_value": 1.0,
+                "deadzone": 0.05,
+                "gyro_range": 90.0,
+                "invert": False
+            },
+            2: {
+                "source_type": "none",
+                "source_id": None,
+                "peak_value": 1.0,
+                "deadzone": 0.05,
+                "gyro_range": 90.0,
+                "invert": False
+            }
+        }
+    }
 }
 
 # Supported Modifier Keys

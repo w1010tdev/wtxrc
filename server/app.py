@@ -60,6 +60,13 @@ def get_config():
     button_config['modifier_keys'] = config.MODIFIER_KEYS
     button_config['special_keys'] = config.SPECIAL_KEYS
     
+    # 加载摇杆配置（优先使用 buttons.json 中的用户配置，否则使用 config.py 的默认值）
+    if 'joystick_type' not in button_config and hasattr(config, 'JOYSTICK_CONFIG'):
+        button_config['joystick_type'] = config.JOYSTICK_CONFIG.get('type', 'xbox360')
+    if 'custom_joystick' not in button_config and hasattr(config, 'JOYSTICK_CONFIG'):
+        if button_config.get('joystick_type') == 'custom':
+            button_config['custom_joystick'] = config.JOYSTICK_CONFIG.get('custom', {})
+    
     # 优先使用 buttons.json 中的 driving_config，如果没有则使用 config.py 中的默认值
     if config.MODE == 'driving':
         if 'driving_config' not in button_config:
@@ -116,7 +123,7 @@ def delete_button():
 
 @app.route('/api/update_driving_config', methods=['POST'])
 def update_driving_config():
-    """更新驾驶模式配置（陀螺仪轴映射和拖动条）"""
+    """更新驾驶模式配置（陀螺仪轴映射和拖动条，或自定义摇杆配置）"""
     try:
         if config.DEBUG:
             print("[CONFIG] 收到驾驶配置更新请求")
@@ -126,18 +133,28 @@ def update_driving_config():
         data = request.json
         if config.DEBUG:
             print(f"[CONFIG] 请求数据: {data}")
-            if data:
-                driving_config = data.get('driving_config', {})
-                print(f"[CONFIG] 驾驶配置内容: {driving_config}")
         
-        # 保存到config.py中需要重启服务器
-        # 这里我们保存到buttons.json中
+        # 保存到buttons.json中
         current_config = load_config()
-        driving_config = data.get('driving_config', {}) if data else {}
-        current_config['driving_config'] = driving_config
         
-        if config.DEBUG:
-            print(f"[CONFIG] 保存驾驶配置: {driving_config}")
+        # 检查是否包含摇杆类型配置
+        if data and 'joystick_type' in data:
+            current_config['joystick_type'] = data['joystick_type']
+            if config.DEBUG:
+                print(f"[CONFIG] 摇杆类型: {data['joystick_type']}")
+            
+            # 如果是自定义摇杆，保存自定义配置
+            if data['joystick_type'] == 'custom' and 'custom_joystick' in data:
+                current_config['custom_joystick'] = data['custom_joystick']
+                if config.DEBUG:
+                    print(f"[CONFIG] 自定义摇杆配置: {data['custom_joystick']}")
+        
+        # 如果包含 Xbox 360 的驾驶配置
+        if data and 'driving_config' in data:
+            driving_config = data['driving_config']
+            current_config['driving_config'] = driving_config
+            if config.DEBUG:
+                print(f"[CONFIG] 驾驶配置内容: {driving_config}")
         
         save_config(current_config)
         
@@ -148,6 +165,12 @@ def update_driving_config():
         if config.DEBUG:
             print(f"[CONFIG] 返回响应: {response.get_json()}")
         return response
+    except Exception as e:
+        if config.DEBUG:
+            print(f"[CONFIG] 保存配置时发生错误: {e}")
+            import traceback
+            traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
         
     except Exception as e:
         print(f"[CONFIG] 错误: {e}")
@@ -223,43 +246,76 @@ def handle_gyro_data(data):
     # 应用陀螺仪数据到虚拟手柄（如果已初始化）
     if virtual_joystick and virtual_joystick.initialized:
         button_config = load_config()
-        axis_config = button_config.get('driving_config', {}).get('axis_config', {})
         
-        # 如果没有新的轴配置，回退到旧的 gyro_axis_mapping
-        if not axis_config:
-            gyro_mapping = button_config.get('driving_config', {}).get('gyro_axis_mapping', {})
-            if not gyro_mapping:
-                gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
+        # 检查是否使用自定义摇杆模式（优先使用 buttons.json，否则使用 config.py）
+        joystick_type = button_config.get('joystick_type', config.JOYSTICK_CONFIG.get('type', 'xbox360'))
+        
+        if joystick_type == 'custom':
+            # 使用自定义摇杆的轴映射（优先使用 buttons.json）
+            custom_config = button_config.get('custom_joystick', config.JOYSTICK_CONFIG.get('custom', {}))
+            axis_mapping = custom_config.get('axis_mapping', {})
             
-            # 使用旧的映射方式（使用 LEGACY_GYRO_RANGE 保持向后兼容）
             gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
-            for gyro_axis, gamepad_axis in gyro_mapping.items():
-                if gamepad_axis and gyro_axis in gyro_values:
-                    value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, LEGACY_GYRO_RANGE)
-                    if config.DEBUG:
-                        print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
-                    virtual_joystick.set_axis(gamepad_axis, value)
-        else:
-            # 使用新的统一轴配置
-            gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
-            for gamepad_axis, axis_cfg in axis_config.items():
+            for axis_index, axis_cfg in axis_mapping.items():
+                if isinstance(axis_index, str):
+                    axis_index = int(axis_index)
+                
                 if axis_cfg.get('source_type') == 'gyro' and axis_cfg.get('source_id'):
                     gyro_axis = axis_cfg['source_id']
                     if gyro_axis in gyro_values:
-                        gyro_range = axis_cfg.get('gyro_range', 45.0)  # 获取陀螺仪范围，默认45度
+                        gyro_range = axis_cfg.get('gyro_range', 90.0)
                         raw_value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, gyro_range)
+                        
                         # 应用死区
                         value = apply_deadzone(raw_value, axis_cfg.get('deadzone', 0.05))
                         # 应用峰值限制
                         value = apply_peak_value(value, axis_cfg.get('peak_value', 1.0))
+                        # 应用反转
+                        if axis_cfg.get('invert', False):
+                            value = -value
+                        
                         if config.DEBUG:
-                            print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [range={gyro_range}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                            print(f"[GYRO] 自定义摇杆: 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> 轴{axis_index}({value:.2f})")
+                        virtual_joystick.set_axis(axis_index, value)
+        else:
+            # 使用 Xbox 360 模式的轴配置
+            axis_config = button_config.get('driving_config', {}).get('axis_config', {})
+            
+            # 如果没有新的轴配置，回退到旧的 gyro_axis_mapping
+            if not axis_config:
+                gyro_mapping = button_config.get('driving_config', {}).get('gyro_axis_mapping', {})
+                if not gyro_mapping:
+                    gyro_mapping = config.DRIVING_CONFIG.get('gyro_axis_mapping', {})
+                
+                # 使用旧的映射方式（使用 LEGACY_GYRO_RANGE 保持向后兼容）
+                gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
+                for gyro_axis, gamepad_axis in gyro_mapping.items():
+                    if gamepad_axis and gyro_axis in gyro_values:
+                        value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, LEGACY_GYRO_RANGE)
+                        if config.DEBUG:
+                            print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f})")
                         virtual_joystick.set_axis(gamepad_axis, value)
-                elif axis_cfg.get('source_type') == 'none':
-                    # 当轴配置为 none 时，显式将该轴重置为 0，避免保留上一次的陀螺仪值
-                    if config.DEBUG:
-                        print(f"[GYRO] 轴 {gamepad_axis} 的 source_type=none，重置为 0")
-                    virtual_joystick.set_axis(gamepad_axis, 0.0)
+            else:
+                # 使用新的统一轴配置
+                gyro_values = {'alpha': alpha, 'beta': beta, 'gamma': gamma}
+                for gamepad_axis, axis_cfg in axis_config.items():
+                    if axis_cfg.get('source_type') == 'gyro' and axis_cfg.get('source_id'):
+                        gyro_axis = axis_cfg['source_id']
+                        if gyro_axis in gyro_values:
+                            gyro_range = axis_cfg.get('gyro_range', 45.0)  # 获取陀螺仪范围，默认45度
+                            raw_value = normalize_gyro_value(gyro_values[gyro_axis], gyro_axis, gyro_range)
+                            # 应用死区
+                            value = apply_deadzone(raw_value, axis_cfg.get('deadzone', 0.05))
+                            # 应用峰值限制
+                            value = apply_peak_value(value, axis_cfg.get('peak_value', 1.0))
+                            if config.DEBUG:
+                                print(f"[GYRO] 映射 {gyro_axis}({gyro_values[gyro_axis]:.2f}) -> {gamepad_axis}({value:.2f}) [range={gyro_range}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                            virtual_joystick.set_axis(gamepad_axis, value)
+                    elif axis_cfg.get('source_type') == 'none':
+                        # 当轴配置为 none 时，显式将该轴重置为 0，避免保留上一次的陀螺仪值
+                        if config.DEBUG:
+                            print(f"[GYRO] 轴 {gamepad_axis} 的 source_type=none，重置为 0")
+                        virtual_joystick.set_axis(gamepad_axis, 0.0)
     else:
         if config.DEBUG:
             print("[GYRO] 警告: 虚拟摇杆未初始化")
@@ -309,51 +365,81 @@ def handle_slider_value(data):
         if config.DEBUG:
             print("[SLIDER] 虚拟摇杆已初始化，应用拖动条值")
         button_config = load_config()
-        axis_config = button_config.get('driving_config', {}).get('axis_config', {})
         buttons = button_config.get('buttons', [])
+        
         # 找到滑块的展示标签/autoCenter 信息（如果存在）
         slider_btn = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
         slider_label = slider_btn.get('label') if slider_btn else slider_id
         slider_auto_center = bool(slider_btn.get('autoCenter')) if slider_btn else False
+        
         # 显示 overlay（实时显示正在操作的滑块）
         try:
             overlay_queue.put({'cmd': 'SHOW', 'text': f"{slider_label}: {value:.2f}"})
         except Exception:
             pass
         
-        # 如果没有新的轴配置，回退到旧方式
-        if not axis_config:
-            if config.DEBUG:
-                print("[SLIDER] 警告: 找不到按钮新版配置")
-            buttons = button_config.get('buttons', [])
-            slider = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
+        # 检查是否使用自定义摇杆模式（优先使用 buttons.json，否则使用 config.py）
+        joystick_type = button_config.get('joystick_type', config.JOYSTICK_CONFIG.get('type', 'xbox360'))
+        
+        if joystick_type == 'custom':
+            # 使用自定义摇杆的轴映射（优先使用 buttons.json）
+            custom_config = button_config.get('custom_joystick', config.JOYSTICK_CONFIG.get('custom', {}))
+            axis_mapping = custom_config.get('axis_mapping', {})
             
-            if slider and slider.get('axis'):
-                axis = slider['axis']
-                if config.DEBUG:
-                    print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
-                virtual_joystick.set_axis(axis, value)
-            else:
-                if config.DEBUG:
-                    print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
-        else:
-            if config.DEBUG:
-                print("[SLIDER] 使用新版统一轴配置应用拖动条值")
-                print(f"[SLIDER] axis_config: {axis_config}")
-                print(f"[SLIDER] 查找 slider_id: {slider_id}")
-            # 使用新的统一轴配置
-            for gamepad_axis, axis_cfg in axis_config.items():
-                if config.DEBUG:
-                    print(f"[SLIDER] 检查轴 {gamepad_axis}: {axis_cfg}")
+            for axis_index, axis_cfg in axis_mapping.items():
+                if isinstance(axis_index, str):
+                    axis_index = int(axis_index)
+                
                 if axis_cfg.get('source_type') == 'slider' and axis_cfg.get('source_id') == slider_id:
                     # 应用死区
                     processed_value = apply_deadzone(value, axis_cfg.get('deadzone', 0.05))
                     # 应用峰值限制
                     processed_value = apply_peak_value(processed_value, axis_cfg.get('peak_value', 1.0))
+                    # 应用反转
+                    if axis_cfg.get('invert', False):
+                        processed_value = -processed_value
+                    
                     if config.DEBUG:
-                        print(f"[SLIDER] 应用到轴: {gamepad_axis} = {processed_value:.3f} [原始={value:.3f}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
-                    virtual_joystick.set_axis(gamepad_axis, processed_value)
+                        print(f"[SLIDER] 自定义摇杆: 应用到轴{axis_index} = {processed_value:.3f}")
+                    virtual_joystick.set_axis(axis_index, processed_value)
                     break
+        else:
+            # 使用 Xbox 360 模式的轴配置
+            axis_config = button_config.get('driving_config', {}).get('axis_config', {})
+            
+            # 如果没有新的轴配置，回退到旧方式
+            if not axis_config:
+                if config.DEBUG:
+                    print("[SLIDER] 警告: 找不到按钮新版配置")
+                slider = next((b for b in buttons if b.get('id') == slider_id and b.get('type') == 'slider'), None)
+                
+                if slider and slider.get('axis'):
+                    axis = slider['axis']
+                    if config.DEBUG:
+                        print(f"[SLIDER] 应用到轴: {axis} = {value:.3f}")
+                    virtual_joystick.set_axis(axis, value)
+                else:
+                    if config.DEBUG:
+                        print(f"[SLIDER] 警告: 找不到拖动条 {slider_id} 的配置或轴映射")
+            else:
+                if config.DEBUG:
+                    print("[SLIDER] 使用新版统一轴配置应用拖动条值")
+                    print(f"[SLIDER] axis_config: {axis_config}")
+                    print(f"[SLIDER] 查找 slider_id: {slider_id}")
+                # 使用新的统一轴配置
+                for gamepad_axis, axis_cfg in axis_config.items():
+                    if config.DEBUG:
+                        print(f"[SLIDER] 检查轴 {gamepad_axis}: {axis_cfg}")
+                    if axis_cfg.get('source_type') == 'slider' and axis_cfg.get('source_id') == slider_id:
+                        # 应用死区
+                        processed_value = apply_deadzone(value, axis_cfg.get('deadzone', 0.05))
+                        # 应用峰值限制
+                        processed_value = apply_peak_value(processed_value, axis_cfg.get('peak_value', 1.0))
+                        if config.DEBUG:
+                            print(f"[SLIDER] 应用到轴: {gamepad_axis} = {processed_value:.3f} [原始={value:.3f}, deadzone={axis_cfg.get('deadzone', 0.05)}, peak={axis_cfg.get('peak_value', 1.0)}]")
+                        virtual_joystick.set_axis(gamepad_axis, processed_value)
+                        break
+        
         # 如果滑块设置为自动归中并且回到默认值，则隐藏 overlay
         try:
             default_val = 0.5 if (slider_btn and slider_btn.get('rangeMode') == 'unipolar') else 0.0
@@ -370,7 +456,7 @@ def handle_slider_value(data):
 
 @socketio.on('save_layout')
 def handle_save_layout(data):
-    # Data should be the new list of buttons
+    """Save the current button layout."""
     print("Saving Layout...")
     current_config = load_config()
     current_config['buttons'] = data
@@ -422,7 +508,21 @@ def init_virtual_joystick():
     if config.MODE == 'driving':
         try:
             from joystick_manager import VirtualJoystick
-            virtual_joystick = VirtualJoystick()
+            # 加载配置（优先使用 buttons.json，否则使用 config.py）
+            button_config = load_config()
+            joystick_config = None
+            
+            # 从 buttons.json 构建摇杆配置
+            if 'joystick_type' in button_config:
+                joystick_config = {
+                    'type': button_config['joystick_type'],
+                    'name': button_config.get('joystick_name', 'wtxrc Custom Joystick')
+                }
+                if button_config['joystick_type'] == 'custom' and 'custom_joystick' in button_config:
+                    joystick_config['custom'] = button_config['custom_joystick']
+            
+            # 传递配置到 VirtualJoystick（会自动回退到 config.py 如果 joystick_config 为 None）
+            virtual_joystick = VirtualJoystick(joystick_config=joystick_config)
             if virtual_joystick.initialized:
                 if config.DEBUG:
                     print("[INIT] ✅ 虚拟摇杆已成功初始化")

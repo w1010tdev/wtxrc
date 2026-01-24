@@ -91,13 +91,28 @@
             style="max-width: 900px;"
         >
             <el-form :model="drivingConfig" label-position="top">
-                <el-divider content-position="left">Xbox 手柄轴配置</el-divider>
-                <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
-                    为每个 Xbox 手柄轴配置输入源（陀螺仪或拖动条）、峰值和死区
-                </p>
+                <!-- 摇杆类型选择 -->
+                <el-divider content-position="left">摇杆类型</el-divider>
+                <el-form-item label="虚拟摇杆模式">
+                    <el-radio-group v-model="joystickType" @change="onJoystickTypeChange">
+                        <el-radio-button label="xbox360">Xbox 360 控制器</el-radio-button>
+                        <el-radio-button label="custom">自定义多轴摇杆</el-radio-button>
+                    </el-radio-group>
+                    <p style="color: var(--el-color-info); font-size: 13px; margin-top: 8px;">
+                        Xbox 360: 标准6轴控制器（2个摇杆 + 2个扳机）<br>
+                        自定义: 可配置多轴摇杆（适用于飞行模拟等场景，支持1-32轴）
+                    </p>
+                </el-form-item>
                 
-                <!-- 轴配置表格 -->
-                <el-table :data="axisConfigList" border style="width: 100%; margin-bottom: 20px;">
+                <!-- Xbox 360 模式配置 -->
+                <template v-if="joystickType === 'xbox360'">
+                    <el-divider content-position="left">Xbox 手柄轴配置</el-divider>
+                    <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
+                        为每个 Xbox 手柄轴配置输入源（陀螺仪或拖动条）、峰值和死区
+                    </p>
+                    
+                    <!-- 轴配置表格 -->
+                    <el-table :data="axisConfigList" border style="width: 100%; margin-bottom: 20px;">
                     <el-table-column prop="axis" label="手柄轴" width="120">
                         <template #default="scope">
                             <strong>{{ getAxisDisplayName(scope.row.axis) }}</strong>
@@ -193,6 +208,138 @@
                         <li>注意：同一个陀螺仪轴可以绑定到多个手柄轴（例如用于控制多个维度），请根据实际需求配置</li>
                     </ul>
                 </el-alert>
+                </template>
+                
+                <!-- 自定义摇杆模式配置 -->
+                <template v-else-if="joystickType === 'custom'">
+                    <el-divider content-position="left">自定义摇杆配置</el-divider>
+                    
+                    <el-form-item label="轴数量">
+                        <el-input-number 
+                            v-model="customJoystickAxisCount" 
+                            :min="1" 
+                            :max="32" 
+                            :step="1"
+                            @change="onCustomAxisCountChange"
+                        ></el-input-number>
+                        <p style="color: var(--el-color-info); font-size: 13px; margin-top: 8px;">
+                            设置虚拟摇杆的轴数量（1-32）
+                        </p>
+                    </el-form-item>
+                    
+                    <p style="color: var(--el-color-info); font-size: 13px; margin-bottom: 12px;">
+                        为每个自定义摇杆轴配置输入源（陀螺仪或拖动条）、峰值、死区和反转
+                    </p>
+                    
+                    <!-- 自定义轴配置表格 -->
+                    <el-table :data="customAxisConfigList" border style="width: 100%; margin-bottom: 20px;">
+                        <el-table-column prop="axis" label="轴索引" width="100">
+                            <template #default="scope">
+                                <strong>轴 {{ scope.row.axisIndex }}</strong>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="输入源" width="140">
+                            <template #default="scope">
+                                <el-select v-model="scope.row.source_type" size="small" @change="onCustomAxisSourceTypeChange(scope.row)">
+                                    <el-option label="未绑定" value="none"></el-option>
+                                    <el-option label="陀螺仪" value="gyro"></el-option>
+                                    <el-option label="拖动条" value="slider"></el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="源选择" width="160">
+                            <template #default="scope">
+                                <el-select 
+                                    v-if="scope.row.source_type === 'gyro'" 
+                                    v-model="scope.row.source_id" 
+                                    size="small"
+                                    placeholder="选择陀螺仪轴"
+                                >
+                                    <el-option label="Gamma (Y轴 左右)" value="gamma"></el-option>
+                                    <el-option label="Beta (X轴 前后)" value="beta"></el-option>
+                                    <el-option label="Alpha (Z轴 旋转)" value="alpha"></el-option>
+                                </el-select>
+                                <el-select 
+                                    v-else-if="scope.row.source_type === 'slider'" 
+                                    v-model="scope.row.source_id" 
+                                    size="small"
+                                    placeholder="选择拖动条"
+                                >
+                                    <el-option 
+                                        v-for="slider in getAvailableSlidersForCustomAxis(scope.row.axisIndex)" 
+                                        :key="slider.id" 
+                                        :label="slider.displayLabel" 
+                                        :value="slider.id"
+                                        :disabled="slider.disabled"
+                                    ></el-option>
+                                </el-select>
+                                <span v-else style="color: var(--el-color-info); font-size: 12px;">-</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="峰值" width="100">
+                            <template #default="scope">
+                                <el-input-number 
+                                    v-model="scope.row.peak_value" 
+                                    :min="0.1" 
+                                    :max="1" 
+                                    :step="0.1" 
+                                    size="small"
+                                    :disabled="scope.row.source_type === 'none'"
+                                ></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="死区" width="100">
+                            <template #default="scope">
+                                <el-input-number 
+                                    v-model="scope.row.deadzone" 
+                                    :min="0" 
+                                    :max="0.5" 
+                                    :step="0.05" 
+                                    size="small"
+                                    :disabled="scope.row.source_type === 'none'"
+                                ></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="陀螺仪范围" width="130">
+                            <template #default="scope">
+                                <el-input-number 
+                                    v-model="scope.row.gyro_range" 
+                                    :min="1" 
+                                    :max="180" 
+                                    :step="1" 
+                                    size="small"
+                                    :disabled="scope.row.source_type !== 'gyro'"
+                                ></el-input-number>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="反转" width="80">
+                            <template #default="scope">
+                                <el-switch 
+                                    v-model="scope.row.invert" 
+                                    size="small"
+                                    :disabled="scope.row.source_type === 'none'"
+                                ></el-switch>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    
+                    <el-alert 
+                        title="提示" 
+                        type="info" 
+                        :closable="false"
+                        style="margin-top: 10px;"
+                    >
+                        <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+                            <li>自定义摇杆适用于飞行模拟等需要多个轴的场景</li>
+                            <li>Windows: 需要安装 vJoy 驱动和 pyvjoy 库</li>
+                            <li>Linux: 需要安装 python-uinput 库</li>
+                            <li>峰值：轴的最大输出值（1.0 = 100%）</li>
+                            <li>死区：忽略小幅输入变化的阈值（防止漂移）</li>
+                            <li>陀螺仪范围：转动多少度达到满输出</li>
+                            <li>反转：反转轴的方向（正变负，负变正）</li>
+                        </ul>
+                    </el-alert>
+                </template>
             </el-form>
             <template #footer>
                 <div style="display: flex; gap: 8px; justify-content: flex-end;">
