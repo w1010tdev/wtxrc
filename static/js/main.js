@@ -194,11 +194,9 @@ const app = createApp({
             for (let i = 0; i < customJoystickAxisCount.value; i++) {
                 const cfg = customAxisMapping[i];
                 if (cfg) {
-                    // 创建一个新对象，包含 axisIndex，而不是直接修改 cfg
-                    list.push({
-                        ...cfg,
-                        axisIndex: i
-                    });
+                    // 直接使用原始配置对象，并附加 axisIndex，保证表格编辑能同步回 customAxisMapping
+                    cfg.axisIndex = i;
+                    list.push(cfg);
                 }
             }
             return list;
