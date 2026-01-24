@@ -107,7 +107,7 @@ const app = createApp({
         // 监听轴数量变化，自动初始化新的轴配置
         watch(customJoystickAxisCount, () => {
             initializeCustomAxisMapping();
-        });
+        }, { immediate: true });
         
         // Canvas state
         let ctx = null;
