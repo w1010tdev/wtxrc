@@ -33,6 +33,10 @@ except ImportError:
 class CustomVirtualJoystick:
     """自定义多轴虚拟摇杆，支持可配置的轴数量。"""
     
+    # Linux uinput axis codes mapping (class constant, lazily initialized when uinput is available)
+    UINPUT_AXIS_CODES = None
+    _axis_codes_lock = threading.Lock()  # Thread-safe initialization
+    
     def __init__(self, axis_count=8, name="Custom Virtual Joystick"):
         """
         初始化自定义虚拟摇杆。
@@ -68,21 +72,25 @@ class CustomVirtualJoystick:
         elif self.system == 'Linux':
             try:
                 import uinput
+                # Initialize class constant on first use (thread-safe)
+                if CustomVirtualJoystick.UINPUT_AXIS_CODES is None:
+                    with CustomVirtualJoystick._axis_codes_lock:
+                        # Double-check after acquiring lock
+                        if CustomVirtualJoystick.UINPUT_AXIS_CODES is None:
+                            CustomVirtualJoystick.UINPUT_AXIS_CODES = [
+                                uinput.ABS_X, uinput.ABS_Y, uinput.ABS_Z,
+                                uinput.ABS_RX, uinput.ABS_RY, uinput.ABS_RZ,
+                                uinput.ABS_THROTTLE, uinput.ABS_RUDDER,
+                                uinput.ABS_WHEEL, uinput.ABS_GAS, uinput.ABS_BRAKE,
+                                uinput.ABS_HAT0X, uinput.ABS_HAT0Y, uinput.ABS_HAT1X,
+                                uinput.ABS_HAT1Y, uinput.ABS_HAT2X, uinput.ABS_HAT2Y,
+                                uinput.ABS_HAT3X, uinput.ABS_HAT3Y, uinput.ABS_PRESSURE,
+                            ]
+                
                 # 创建包含指定数量轴的 uinput 设备
                 events = []
-                # 添加轴（ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ, ABS_THROTTLE, ABS_RUDDER等）
-                axis_codes = [
-                    uinput.ABS_X, uinput.ABS_Y, uinput.ABS_Z,
-                    uinput.ABS_RX, uinput.ABS_RY, uinput.ABS_RZ,
-                    uinput.ABS_THROTTLE, uinput.ABS_RUDDER,
-                    uinput.ABS_WHEEL, uinput.ABS_GAS, uinput.ABS_BRAKE,
-                    uinput.ABS_HAT0X, uinput.ABS_HAT0Y, uinput.ABS_HAT1X,
-                    uinput.ABS_HAT1Y, uinput.ABS_HAT2X, uinput.ABS_HAT2Y,
-                    uinput.ABS_HAT3X, uinput.ABS_HAT3Y, uinput.ABS_PRESSURE,
-                ]
-                
-                for i in range(min(self.axis_count, len(axis_codes))):
-                    events.append(axis_codes[i] + (-32767, 32767, 0, 0))
+                for i in range(min(self.axis_count, len(CustomVirtualJoystick.UINPUT_AXIS_CODES))):
+                    events.append(CustomVirtualJoystick.UINPUT_AXIS_CODES[i] + (-32767, 32767, 0, 0))
                 
                 self.gamepad = uinput.Device(events, name=self.name)
                 self.initialized = True
@@ -135,18 +143,8 @@ class CustomVirtualJoystick:
                 # 将 -1.0~1.0 映射到 -32767~32767
                 int_value = int(value * 32767)
                 
-                axis_codes = [
-                    uinput.ABS_X, uinput.ABS_Y, uinput.ABS_Z,
-                    uinput.ABS_RX, uinput.ABS_RY, uinput.ABS_RZ,
-                    uinput.ABS_THROTTLE, uinput.ABS_RUDDER,
-                    uinput.ABS_WHEEL, uinput.ABS_GAS, uinput.ABS_BRAKE,
-                    uinput.ABS_HAT0X, uinput.ABS_HAT0Y, uinput.ABS_HAT1X,
-                    uinput.ABS_HAT1Y, uinput.ABS_HAT2X, uinput.ABS_HAT2Y,
-                    uinput.ABS_HAT3X, uinput.ABS_HAT3Y, uinput.ABS_PRESSURE,
-                ]
-                
-                if axis_index < len(axis_codes):
-                    self.gamepad.emit(axis_codes[axis_index], int_value, syn=True)
+                if axis_index < len(CustomVirtualJoystick.UINPUT_AXIS_CODES):
+                    self.gamepad.emit(CustomVirtualJoystick.UINPUT_AXIS_CODES[axis_index], int_value, syn=True)
             except Exception as e:
                 if config and config.DEBUG:
                     print(f"设置 Linux 自定义摇杆轴失败：{e}")
@@ -169,16 +167,29 @@ class CustomVirtualJoystick:
 class VirtualJoystick:
     """Virtual joystick abstraction layer. 支持 Xbox 360 和自定义多轴模式。"""
     
-    def __init__(self):
+    def __init__(self, joystick_config=None):
+        """
+        初始化虚拟摇杆。
+        
+        Args:
+            joystick_config: 摇杆配置字典（来自 buttons.json），如果为 None 则使用 config.py 的默认值
+                           格式: {'type': 'xbox360'|'custom', 'custom': {'axis_count': 8, ...}}
+        """
         self.system = platform.system()
         self.gamepad = None
         self.initialized = False
         self.joystick_type = "xbox360"  # 默认使用 Xbox 360
         self.custom_joystick = None  # 自定义摇杆实例
         
-        # 从配置中读取摇杆类型
-        if HAS_CONFIG and hasattr(config, 'JOYSTICK_CONFIG'):
+        # 优先使用传入的配置（来自 buttons.json），否则使用 config.py 作为后备
+        if joystick_config:
+            self.joystick_type = joystick_config.get('type', 'xbox360')
+            self._joystick_config = joystick_config
+        elif HAS_CONFIG and hasattr(config, 'JOYSTICK_CONFIG'):
             self.joystick_type = config.JOYSTICK_CONFIG.get('type', 'xbox360')
+            self._joystick_config = config.JOYSTICK_CONFIG
+        else:
+            self._joystick_config = {'type': 'xbox360'}
         
         self._init_gamepad()
         
@@ -191,13 +202,9 @@ class VirtualJoystick:
         """Initialize the virtual gamepad based on the platform and configuration."""
         if self.joystick_type == "custom":
             # 使用自定义多轴摇杆
-            if HAS_CONFIG and hasattr(config, 'JOYSTICK_CONFIG'):
-                custom_config = config.JOYSTICK_CONFIG.get('custom', {})
-                axis_count = custom_config.get('axis_count', 8)
-                name = config.JOYSTICK_CONFIG.get('name', 'wtxrc Custom Joystick')
-            else:
-                axis_count = 8
-                name = 'wtxrc Custom Joystick'
+            custom_config = self._joystick_config.get('custom', {})
+            axis_count = custom_config.get('axis_count', 8)
+            name = self._joystick_config.get('name', 'wtxrc Custom Joystick')
             
             self.custom_joystick = CustomVirtualJoystick(axis_count=axis_count, name=name)
             self.initialized = self.custom_joystick.initialized

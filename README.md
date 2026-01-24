@@ -80,6 +80,11 @@
 3. 为每个轴配置输入源（陀螺仪或拖动条）、峰值、死区等参数
 4. 保存并重启服务器
 
+**配置优先级：**
+- 摇杆配置优先从 `config/buttons.json` 读取（通过 Web 界面保存的用户配置）
+- 如果 `buttons.json` 中没有配置，则使用 `config/config.py` 中的默认值作为后备
+- 修改摇杆类型或轴数量后，需要重启服务器才能生效
+
 详细配置说明请参考 [CUSTOM_JOYSTICK_GUIDE.md](CUSTOM_JOYSTICK_GUIDE.md)
 
 ## 技术细节
